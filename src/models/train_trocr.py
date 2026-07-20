@@ -1,7 +1,7 @@
 import os
 import torch
 import pandas as pd
-from transformers import TrOCRProcessor, VisionEncoderDecoderModel, Seq2SeqTrainer, Seq2SeqTrainingArguments, AutoTokenizer
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel, Seq2SeqTrainer, Seq2SeqTrainingArguments
 from transformers import default_data_collator
 import evaluate
 from src.data.dataset import HandwritingDataset
@@ -27,9 +27,7 @@ def train_model(train_df, eval_df, output_dir="./models/trocr-finetuned", epochs
     """
     Trains the TrOCR model.
     """
-    # Load tokenizer directly to completely bypass the fast tokenizer auto-conversion bug
-    tokenizer = AutoTokenizer.from_pretrained("microsoft/trocr-base-handwritten", use_fast=False)
-    processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten", tokenizer=tokenizer)
+    processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
     model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
 
     # Set special tokens used for creating the decoder_input_ids from the labels
