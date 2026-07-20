@@ -1,4 +1,7 @@
 import os
+import sys
+# Add the project root to the Python path so 'src' can be found
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pandas as pd
 from src.models.train_trocr import train_model
 
