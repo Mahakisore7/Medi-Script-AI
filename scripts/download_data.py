@@ -29,7 +29,7 @@ if __name__ == "__main__":
     DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "raw")
     
     # 1. IAM Dataset (Kaggle mirror for pretraining)
-    iam_dataset = "sushant097/iam-handwriting-word-database"
+    iam_dataset = "nibinv23/iam-handwriting-word-database"
     download_kaggle_dataset(iam_dataset, os.path.join(DATA_DIR, "iam_dataset"))
     
     # 2. Doctor's Handwritten Prescription BD Dataset (for fine-tuning later)
