@@ -27,7 +27,8 @@ def train_model(train_df, eval_df, output_dir="./models/trocr-finetuned", epochs
     """
     Trains the TrOCR model.
     """
-    processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
+    # Force use_fast=False to avoid sentencepiece/tiktoken fast tokenizer conversion bugs on Python 3.12+
+    processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten", use_fast=False)
     model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
 
     # Set special tokens used for creating the decoder_input_ids from the labels
