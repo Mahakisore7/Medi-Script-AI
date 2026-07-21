@@ -35,6 +35,11 @@ class HandwritingDataset(Dataset):
                 image = preprocess_image(file_name)
             else:
                 image = Image.open(file_name).convert("RGB")
+                
+            # Prevent ambiguous channel dimension bugs in HuggingFace for extremely tiny images (e.g., 1x1 pixels)
+            if image.width < 5 or image.height < 5:
+                raise ValueError(f"Image too small ({image.width}x{image.height})")
+                
         except Exception as e:
             # Fallback for broken images, returning a black image
             print(f"Warning: Failed to load {file_name}: {e}")
