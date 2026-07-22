@@ -63,6 +63,7 @@ def train_model(train_df, eval_df, output_dir="./models/trocr-finetuned", epochs
         load_best_model_at_end=True,
         metric_for_best_model="cer",
         greater_is_better=False, # We want lower CER
+        report_to="none", # Disable wandb to prevent interactive prompt hanging
     )
 
     trainer = Seq2SeqTrainer(
@@ -76,7 +77,10 @@ def train_model(train_df, eval_df, output_dir="./models/trocr-finetuned", epochs
     )
 
     print("Starting training...")
-    trainer.train()
+    # By passing resume_from_checkpoint=True, the Trainer will automatically 
+    # find the latest checkpoint in output_dir (e.g. checkpoint-3500) and resume from it!
+    # If no checkpoint exists, it safely starts from scratch.
+    trainer.train(resume_from_checkpoint=True)
     
     print(f"Saving final model to {output_dir}")
     trainer.save_model(output_dir)
