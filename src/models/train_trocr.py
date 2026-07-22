@@ -68,7 +68,7 @@ def train_model(train_df, eval_df, output_dir="./models/trocr-finetuned", epochs
 
     trainer = Seq2SeqTrainer(
         model=model,
-        tokenizer=processor.feature_extractor, # Pass feature extractor as tokenizer
+        processing_class=processor.tokenizer, # Updated for Transformers v4.46+
         args=training_args,
         compute_metrics=lambda pred: compute_metrics(pred, processor),
         train_dataset=train_dataset,
