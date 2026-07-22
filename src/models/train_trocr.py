@@ -76,11 +76,15 @@ def train_model(train_df, eval_df, output_dir="./models/trocr-finetuned", epochs
         data_collator=default_data_collator,
     )
 
+    import os
+    from transformers.trainer_utils import get_last_checkpoint
+    
+    last_checkpoint = None
+    if os.path.isdir(output_dir):
+        last_checkpoint = get_last_checkpoint(output_dir)
+        
     print("Starting training...")
-    # By passing resume_from_checkpoint=True, the Trainer will automatically 
-    # find the latest checkpoint in output_dir (e.g. checkpoint-3500) and resume from it!
-    # If no checkpoint exists, it safely starts from scratch.
-    trainer.train(resume_from_checkpoint=True)
+    trainer.train(resume_from_checkpoint=last_checkpoint)
     
     print(f"Saving final model to {output_dir}")
     trainer.save_model(output_dir)
