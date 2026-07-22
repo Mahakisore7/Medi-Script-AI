@@ -38,7 +38,7 @@ if __name__ == "__main__":
     
     # 2. Doctor's Handwritten Prescription BD Dataset (for fine-tuning later)
     # Based on the paper authors (Mia et al. 2024), this is the most likely valid slug.
-    bd_dataset = "miaet/doctors-handwritten-prescription-bd-dataset" 
+    bd_dataset = "mamun1113/doctors-handwritten-prescription-bd-dataset" 
     download_kaggle_dataset(bd_dataset, os.path.join(DATA_DIR, "bd_prescription_dataset"))
     
     print("All datasets downloaded successfully!")
