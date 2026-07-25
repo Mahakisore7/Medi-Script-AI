@@ -33,17 +33,14 @@ class TrOCRRecognizer:
             logging.error(f"Failed to load TrOCR: {e}")
             self.model = None
 
-    def recognize_text(self, image: np.ndarray) -> str:
+    def recognize_text(self, image: np.ndarray) -> tuple[str, float]:
         if self.model is None:
-            return "dummy_text"
+            return "dummy_text", 50.0
 
         try:
             # Convert NumPy array (BGR/RGB) to PIL Image
             if isinstance(image, np.ndarray):
-                # Assuming image is BGR from OpenCV, convert to RGB
-                # Wait, pipeline extracts RGB. Let's just convert safely.
                 if len(image.shape) == 3 and image.shape[2] == 3:
-                    # Often cv2 provides BGR, but we assume RGB or handle generically
                     pass
                 pil_image = Image.fromarray(image).convert("RGB")
             else:
@@ -54,20 +51,48 @@ class TrOCRRecognizer:
             )
 
             with torch.no_grad():
-                generated_ids = self.model.generate(pixel_values)
+                outputs = self.model.generate(
+                    pixel_values, 
+                    return_dict_in_generate=True, 
+                    output_scores=True
+                )
+
+            generated_ids = outputs.sequences
+            
+            # Compute confidence score from transition scores (requires transformers support)
+            try:
+                transition_scores = self.model.compute_transition_scores(
+                    outputs.sequences, outputs.scores, normalize_logits=True
+                )
+                # Average the token probabilities to get a pseudo-confidence score (0-100)
+                # Ensure we handle empty sequences
+                if transition_scores.numel() > 0:
+                    token_probs = torch.exp(transition_scores[0])
+                    # Filter out NaN/Inf just in case
+                    token_probs = token_probs[torch.isfinite(token_probs)]
+                    if token_probs.numel() > 0:
+                        avg_prob = token_probs.mean().item()
+                        conf = float(avg_prob) * 100.0
+                    else:
+                        conf = 50.0
+                else:
+                    conf = 50.0
+            except Exception as e:
+                logging.warning(f"Failed to compute transition scores: {e}")
+                conf = 50.0
 
             generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-            return generated_text.strip()
+            return generated_text.strip(), conf
         except Exception as e:
             logging.error(f"TrOCR recognition error: {e}")
-            return ""
+            return "", 0.0
 
 
 # We keep a singleton for the pipeline so it doesn't reload the 1.3GB model every call!
 _recognizer = None
 
 
-def recognize_text(image: np.ndarray) -> str:
+def recognize_text(image: np.ndarray) -> tuple[str, float]:
     """
     Main entry point for pipeline.py.
     """

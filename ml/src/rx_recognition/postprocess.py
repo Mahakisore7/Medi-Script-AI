@@ -1,18 +1,60 @@
 from rapidfuzz import fuzz, process
 
-from rx_recognition.lexicon import DRUG_LEXICON
+from rx_recognition.lexicon import get_lexicon
+
+
+def combined_confidence(seg_conf: float, rec_conf: float, val_conf: float) -> float:
+    """
+    Blends the three confidence signals (YOLO, TrOCR, Validation).
+    Weighted heavily toward validation (since it checks against a real vocabulary).
+    If any single stage is extremely low, it drags the whole score down.
+    """
+    weighted = 0.2 * seg_conf + 0.3 * rec_conf + 0.5 * val_conf
+    # The lowest signal acts as an anchor to prevent high false confidence
+    return float(min(weighted, min(seg_conf, rec_conf, val_conf) + 15.0))
+
+
+def validate_field(field_name: str, raw_text: str, language: str = "en") -> tuple[str, float]:
+    """
+    Applies domain-specific postprocessing (Phase 5).
+    Fuzzy matches against known lexicons to correct minor OCR spelling mistakes,
+    and returns a validation confidence score (0-100).
+    """
+    raw_text = raw_text.strip()
+    if not raw_text:
+        return "", 0.0
+
+    lexicon, index = get_lexicon(field_name, language)
+    
+    if not lexicon:
+        # If no lexicon exists for this field, we just accept the raw text
+        # We assign a moderate validation confidence since it wasn't strictly validated
+        return raw_text, 50.0
+
+    # Fast indexed lookup: only fuzzy match against words starting with the same letter
+    first_letter = raw_text[0].lower()
+    candidates = index.get(first_letter, [])
+    
+    if not candidates:
+        # If no candidates share the first letter, fall back to the full linear search
+        # (Useful if TrOCR messed up the very first letter)
+        candidates = lexicon
+
+    # Rapidfuzz extractOne returns (match, score, index)
+    match = process.extractOne(raw_text, candidates, scorer=fuzz.WRatio)
+    
+    if match:
+        best_match, score, _ = match
+        if score > 60:  # Threshold
+            return best_match, score
+            
+    # If it failed to match anything well, return the raw text with a very low validation score
+    return raw_text, 10.0
 
 
 def postprocess_text(field_name: str, raw_text: str) -> str:
     """
-    Applies domain-specific postprocessing (Phase 5).
-    For the medicine field, we fuzzy match against a known drug lexicon
-    to correct minor OCR spelling mistakes.
+    Legacy wrapper for older scripts.
     """
-    if field_name == "medicine" and raw_text.strip():
-        # Rapidfuzz extractOne returns (match, score, index)
-        match = process.extractOne(raw_text, DRUG_LEXICON, scorer=fuzz.WRatio)
-        if match and match[1] > 60:  # Threshold
-            return match[0]
-
-    return raw_text.strip()
+    val, _ = validate_field(field_name, raw_text)
+    return val

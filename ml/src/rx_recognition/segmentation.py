@@ -1,5 +1,4 @@
 import logging
-
 import numpy as np
 
 
@@ -15,7 +14,7 @@ class TrainedFieldDetector:
         # Download nano pretrained if path doesn't exist locally, or use trained weights
         self.model = YOLO(weights_path)
 
-    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray]]:
+    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
         # YOLO inference
         results = self.model(image, verbose=False)[0]
         crops = []
@@ -23,17 +22,18 @@ class TrainedFieldDetector:
         for box in results.boxes:
             field_name = self.model.names[int(box.cls)]
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+            conf = float(box.conf[0]) * 100.0  # Convert to 0-100 scale
 
             # Crop the image using the bounding box
             crop = image[y1:y2, x1:x2]
-            crops.append((field_name, crop))
+            crops.append((field_name, crop, conf))
 
         return crops
 
 
 def segment_fields(
     image: np.ndarray, use_yolo: bool = False, yolo_weights: str = "yolov8n.pt"
-) -> list[tuple[str, np.ndarray]]:
+) -> list[tuple[str, np.ndarray, float]]:
     """
     Placeholder segmentation module.
     Splits the image horizontally into 5 rough chunks corresponding to our 5 fields.
@@ -57,6 +57,7 @@ def segment_fields(
         y1 = i * step
         y2 = height if i == 4 else (i + 1) * step
         crop = image[y1:y2, 0:width]
-        crops.append((field, crop))
+        # For dummy segmentation, we assign a hardcoded confidence of 50.0
+        crops.append((field, crop, 50.0))
 
     return crops
