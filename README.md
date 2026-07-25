@@ -2,15 +2,14 @@
 
 This repository contains the codebase for the SafeRx-OCR thesis project, building an end-to-end pipeline for handwritten medical prescription recognition.
 
-## Branch: `feat/baseline-eval` (Phase 2)
+## Branch: `feat/segmentation-yolo` (Phase 3)
 
-This branch focuses on **Phase 2: Baseline Walking Skeleton**. We are building out the basic, end-to-end pipeline using placeholders (OpenCV and Tesseract) to establish a baseline Character Error Rate (CER) and Word Error Rate (WER).
+This branch focuses on **Phase 3: Field Segmentation**. We replaced the brittle OpenCV horizontal projection chunker with a robust YOLOv8 Object Detection model.
 
 ### Key Components
-- `ml/src/rx_recognition/preprocessing.py`: Basic OpenCV processing.
-- `ml/src/rx_recognition/segmentation.py`: Contour-based placeholder.
-- `ml/src/rx_recognition/recognition.py`: Tesseract baseline.
-- `ml/src/rx_recognition/evaluation.py`: Computes CER, WER, EMA using RapidFuzz.
+- `ml/src/rx_recognition/train_yolo.py`: Training script for fine-tuning a YOLOv8 object detector to crop prescription fields.
+- `ml/src/rx_recognition/generate_yolo_data.py`: Data conversion script for synthetic testing.
+- `ml/src/rx_recognition/segmentation.py`: Implements `TrainedFieldDetector` using `ultralytics` to seamlessly integrate YOLO inference into the pipeline.
 
 ### Local Setup
 
