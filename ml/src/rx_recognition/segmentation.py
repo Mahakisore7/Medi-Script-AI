@@ -1,13 +1,52 @@
+import logging
+
 import numpy as np
 
 
-def segment_fields(image: np.ndarray) -> list[tuple[str, np.ndarray]]:
+class TrainedFieldDetector:
+    """
+    Swaps in for segment_fields.
+    Uses YOLOv8 to detect field bounding boxes.
+    """
+
+    def __init__(self, weights_path: str):
+        from ultralytics import YOLO
+
+        # Download nano pretrained if path doesn't exist locally, or use trained weights
+        self.model = YOLO(weights_path)
+
+    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray]]:
+        # YOLO inference
+        results = self.model(image, verbose=False)[0]
+        crops = []
+
+        for box in results.boxes:
+            field_name = self.model.names[int(box.cls)]
+            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+
+            # Crop the image using the bounding box
+            crop = image[y1:y2, x1:x2]
+            crops.append((field_name, crop))
+
+        return crops
+
+
+def segment_fields(
+    image: np.ndarray, use_yolo: bool = False, yolo_weights: str = "yolov8n.pt"
+) -> list[tuple[str, np.ndarray]]:
     """
     Placeholder segmentation module.
     Splits the image horizontally into 5 rough chunks corresponding to our 5 fields.
-    This will be replaced by Mask R-CNN in Phase 3.
-    Returns a list of (field_name, image_crop).
+    If use_yolo is True, uses the trained YOLO model instead.
     """
+    if use_yolo:
+        detector = TrainedFieldDetector(yolo_weights)
+        crops = detector.detect_fields(image)
+        if len(crops) > 0:
+            return crops
+        else:
+            logging.warning("YOLO detected no fields! Falling back to dummy segmentation.")
+
     height, width = image.shape[:2]
     step = height // 5
 

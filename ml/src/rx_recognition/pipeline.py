@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 
 from rx_recognition.postprocess import postprocess_text
@@ -14,8 +16,17 @@ def run_image_pipeline(image: np.ndarray) -> dict:
     # 1. Preprocess
     clean_image = preprocess_image(image)
 
+    # Check if we have trained YOLO weights to use
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    yolo_weights = os.path.abspath(
+        os.path.join(
+            script_dir, "..", "..", "runs", "detect", "yolov8n-smoke-test", "weights", "best.pt"
+        )
+    )
+    use_yolo = os.path.exists(yolo_weights)
+
     # 2. Segment
-    fields = segment_fields(clean_image)
+    fields = segment_fields(clean_image, use_yolo=use_yolo, yolo_weights=yolo_weights)
 
     # 3. Recognize & 4. Postprocess
     results = {}
