@@ -10,16 +10,21 @@ from rx_recognition.pipeline import run_image_pipeline
 
 
 def main():
-    # Since we are running this without a wandb account, we set it to offline
-    os.environ["WANDB_MODE"] = "offline"
-    wandb.init(project="rx-recognition", name="baseline-tesseract")
+    # Calculate paths relative to this script's directory (ml/src/rx_recognition)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
 
-    samples_dir = "../../data/samples"
+    samples_dir = os.path.join(project_root, "data", "samples")
     csv_path = os.path.join(samples_dir, "ground_truth.csv")
+    results_dir = os.path.join(project_root, "ml", "results")
 
     if not os.path.exists(csv_path):
         print(f"Ground truth not found at {csv_path}")
         return
+
+    # Since we are running this without a wandb account, we set it to offline
+    os.environ["WANDB_MODE"] = "offline"
+    wandb.init(project="rx-recognition", name="baseline-tesseract")
 
     predictions_flat = []
     truths_flat = []
@@ -47,8 +52,8 @@ def main():
     results = evaluate_batch(predictions_flat, truths_flat)
 
     # Save locally
-    os.makedirs("../../ml/results", exist_ok=True)
-    with open("../../ml/results/baseline.json", "w") as f:
+    os.makedirs(results_dir, exist_ok=True)
+    with open(os.path.join(results_dir, "baseline.json"), "w") as f:
         json.dump(results, f, indent=4)
 
     print("Baseline Results:")
