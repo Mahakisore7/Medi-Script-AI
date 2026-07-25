@@ -2,15 +2,15 @@
 
 This repository contains the codebase for the SafeRx-OCR thesis project, building an end-to-end pipeline for handwritten medical prescription recognition.
 
-## Branch: `feat/baseline-eval` (Phase 2)
+## Branch: `feat/trocr-finetune` (Phase 4)
 
-This branch focuses on **Phase 2: Baseline Walking Skeleton**. We are building out the basic, end-to-end pipeline using placeholders (OpenCV and Tesseract) to establish a baseline Character Error Rate (CER) and Word Error Rate (WER).
+This branch focuses on **Phase 4: Text Recognition Engine**. We replaced the initial Tesseract OCR placeholder with a state-of-the-art Hugging Face `TrOCR` (VisionEncoderDecoder) model.
 
 ### Key Components
-- `ml/src/rx_recognition/preprocessing.py`: Basic OpenCV processing.
-- `ml/src/rx_recognition/segmentation.py`: Contour-based placeholder.
-- `ml/src/rx_recognition/recognition.py`: Tesseract baseline.
-- `ml/src/rx_recognition/evaluation.py`: Computes CER, WER, EMA using RapidFuzz.
+- `ml/src/rx_recognition/train_trocr.py`: Script to fine-tune the `microsoft/trocr-base-handwritten` model on custom prescription data.
+- `ml/src/rx_recognition/generate_trocr_data.py`: Script to generate training manifests from Roboflow or synthetic datasets.
+- `ml/src/rx_recognition/recognition.py`: Implements `TrOCRRecognizer` for pipeline inference.
+- `KAGGLE_TRAINING_NOTES.md`: Notes for running the actual training in the cloud.
 
 ### Local Setup
 
