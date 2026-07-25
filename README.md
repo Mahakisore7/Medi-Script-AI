@@ -2,16 +2,15 @@
 
 This repository contains the codebase for the SafeRx-OCR thesis project, building an end-to-end pipeline for handwritten medical prescription recognition.
 
-## Branch: `main` (Phase 0 Foundation)
+## Branch: `feat/baseline-eval` (Phase 2)
 
-This branch contains the foundational **Phase 0** repository scaffolding. It establishes the monorepo structure, Python tooling (`uv`), and strict GitHub CI/CD standards according to the `docs_build_guide`.
+This branch focuses on **Phase 2: Baseline Walking Skeleton**. We are building out the basic, end-to-end pipeline using placeholders (OpenCV and Tesseract) to establish a baseline Character Error Rate (CER) and Word Error Rate (WER).
 
-### Directory Structure
-- `ml/`: Python machine learning pipeline, training, and evaluation.
-- `api/`: FastAPI backend (Phase 6).
-- `web/`: React + Vite frontend (Phase 6).
-- `docs/`: Build guide documentation and architectural diagrams.
-- `data/`: Local testing datasets (gitignored).
+### Key Components
+- `ml/src/rx_recognition/preprocessing.py`: Basic OpenCV processing.
+- `ml/src/rx_recognition/segmentation.py`: Contour-based placeholder.
+- `ml/src/rx_recognition/recognition.py`: Tesseract baseline.
+- `ml/src/rx_recognition/evaluation.py`: Computes CER, WER, EMA using RapidFuzz.
 
 ### Local Setup
 
@@ -26,10 +25,9 @@ We use `uv` for reproducible, fast Python environment management.
    cd ml
    uv sync
    ```
-3. **Run Linting**:
+3. **Run the baseline evaluation**:
    ```bash
-   uv run --project ml ruff check .
-   uv run --project ml pytest ml/tests -v
+   uv run --project ml python -m rx_recognition.run_baseline_eval
    ```
 
 *(Note: The old IAM pretraining proof-of-concept can be found in the `iam_pretraining_poc/` directory).*
