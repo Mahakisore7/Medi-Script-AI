@@ -73,5 +73,43 @@ We use `uv` for reproducible, fast Python environment management. To get started
 > uv run --project ml python -m rx_recognition.run_baseline_eval
 > ```
 
+---
+
+## The Core Architecture (How it Works)
+
+This pipeline chains three distinct AI modules together. A raw image goes in one end, and structured JSON data comes out the other:
+
+1. **YOLOv8 (Segmentation Module):**
+   - *What it does:* Acts as the "eyes". Instead of reading the whole page at once, YOLO scans the document and draws precise bounding boxes around specific fields (e.g., Patient Name, Medicine, Age).
+   - *Why we use it:* It crops the image into small, isolated snippets so the text reader isn't confused by surrounding noise.
+2. **TrOCR (Recognition Module):**
+   - *What it does:* Acts as the "reader". It takes the small cropped image of handwriting (e.g., the medicine scribble) and uses a VisionEncoderDecoder Transformer to translate the pixels into raw text characters.
+3. **Lexicon & RapidFuzz (Post-processing Module):**
+   - *What it does:* Acts as the "spellchecker". Because handwriting AI often makes slight spelling mistakes, this module uses fuzzy-string matching to compare TrOCR's raw output against a known dictionary of medical terms to autocorrect it!
+
+---
+
+## Why Kaggle Fine-Tuning is Necessary (The "Human Sample" Test)
+
+Currently, the local codebase uses the **un-trained, base versions** of YOLO and TrOCR. If we run a real human prescription (`human_sample_01.jpeg`) through the `demo.py` script right now, we get this result:
+
+```python
+--- Raw OCR Text (Before Lexicon Correction) ---
+{'age': 'winda more',
+ 'gender': "Premiere's life .",
+ 'medicine': '0 0',
+ 'name': 'THE FIRST REPORT',
+ 'symptoms': '0 0'}
+```
+
+**Why did it hallucinate "THE FIRST REPORT" and "Premiere's life."?**
+- **YOLO** has only been trained on synthetic formats, so it cropped the wrong parts of the human image.
+- **TrOCR** has never seen medical cursive, so it frantically tried to find standard English sentences in the messy ink scribbles.
+- **The Lexicon** only has 10 mock words in it, so it didn't know how to autocorrect `"0 0"`.
+
+**The Fix:** This is exactly why the next step (Phase 4.5 & Phase 5) is to upload the code to Kaggle, fine-tune the models on 580 real prescriptions to cure the hallucinations, and upgrade the Lexicon to a massive openFDA drug dictionary!
+
+---
+
 ## Next Steps
-The local pipeline structure is complete! The next phase is to deploy this to Kaggle/Google Colab and run the fine-tuning scripts on the real Roboflow dataset!
+The local pipeline structure is complete! The next phase is to deploy this to Kaggle/Google Colab and run the fine-tuning scripts on the real Roboflow dataset, and execute Phase 5 to expand the validation Lexicon!
