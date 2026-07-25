@@ -109,7 +109,19 @@ Currently, the local codebase uses the **un-trained, base versions** of YOLO and
 
 **The Fix:** This is exactly why the next step (Phase 4.5 & Phase 5) is to upload the code to Kaggle, fine-tune the models on 580 real prescriptions to cure the hallucinations, and upgrade the Lexicon to a massive openFDA drug dictionary!
 
+### Phase 5: Post-Processing & Structured Confidence
+**Branch:** `main`
+- Scaled up the Lexicon system by fetching 1,142+ real drug names from the **openFDA API**.
+- Implemented a first-letter fuzzy matching index to dramatically increase autocorrect speed.
+- Extracted generation confidences from TrOCR and bounding box confidences from YOLO.
+- Implemented a Unified Confidence Calibration system (`postprocess.py`) to flag AI hallucinations with extremely low confidence scores when they fail dictionary validation.
+> **How to verify:**
+> Run the demo script on a human sample to see the low-confidence flags:
+> ```bash
+> uv run --project ml python demo.py
+> ```
+
 ---
 
 ## Next Steps
-The local pipeline structure is complete! The next phase is to deploy this to Kaggle/Google Colab and run the fine-tuning scripts on the real Roboflow dataset, and execute Phase 5 to expand the validation Lexicon!
+The local pipeline structure is complete! The next phase is to deploy this to Kaggle/Google Colab, download the real Roboflow dataset, and run the fine-tuning scripts to teach the models how to read cursive handwriting!
