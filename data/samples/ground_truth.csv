@@ -1,0 +1,11 @@
+image_file,name,age,gender,symptoms,medicine
+synth_0.png,John Doe,45,Male,Fever,Amoxicillin
+synth_1.png,Jane Smith,32,Female,Headache,Ibuprofen
+synth_2.png,Robert Johnson,55,Male,Body pain,Paracetamol
+synth_3.png,Emily Davis,28,Female,Cough,Azithromycin
+synth_4.png,Michael Brown,60,Male,High BP,Lisinopril
+synth_5.png,Sarah Miller,50,Female,Diabetes,Metformin
+synth_6.png,David Wilson,65,Male,Cholesterol,Atorvastatin
+synth_7.png,Linda Moore,40,Female,Hypertension,Amlodipine
+synth_8.png,William Taylor,35,Male,Asthma,Albuterol
+synth_9.png,Barbara Anderson,42,Female,Acidity,Omeprazole
