@@ -17,7 +17,7 @@ class TrainedFieldDetector:
 
     def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
         # YOLO inference with lower confidence threshold
-        results = self.model(image, verbose=False, conf=0.01)[0]
+        results = self.model(image, verbose=False, conf=0.25)[0]
         crops = []
 
         for box in results.boxes:
