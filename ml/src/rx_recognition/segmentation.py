@@ -1,4 +1,5 @@
 import logging
+
 import numpy as np
 
 
@@ -15,8 +16,8 @@ class TrainedFieldDetector:
         self.model = YOLO(weights_path)
 
     def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
-        # YOLO inference
-        results = self.model(image, verbose=False)[0]
+        # YOLO inference with lower confidence threshold
+        results = self.model(image, verbose=False, conf=0.01)[0]
         crops = []
 
         for box in results.boxes:

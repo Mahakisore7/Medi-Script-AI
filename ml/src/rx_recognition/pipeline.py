@@ -19,11 +19,14 @@ def run_image_pipeline(image: np.ndarray) -> dict:
     # Check if we have trained YOLO weights to use
     script_dir = os.path.dirname(os.path.abspath(__file__))
     yolo_weights = os.path.abspath(
-        os.path.join(
-            script_dir, "..", "..", "runs", "detect", "yolov8n-smoke-test", "weights", "best.pt"
-        )
+        os.path.join(script_dir, "..", "..", "..", "runs", "detect", "kaggle_best.pt")
     )
+    print(f"\n[INFO] Loading YOLO model from: {yolo_weights}")
     use_yolo = os.path.exists(yolo_weights)
+    if not use_yolo:
+        print(
+            f"[WARNING] Model file not found at {yolo_weights}! Falling back to dummy segmentation."
+        )
 
     # 2. Segment
     fields = segment_fields(clean_image, use_yolo=use_yolo, yolo_weights=yolo_weights)
@@ -31,15 +34,19 @@ def run_image_pipeline(image: np.ndarray) -> dict:
     # 3. Recognize & 4. Postprocess
     results = {}
     confidences = {}
-    for field_name, crop, seg_conf in fields:
+    for i, (field_name, crop, seg_conf) in enumerate(fields):
         raw_text, rec_conf = recognize_text(crop)
         clean_text, val_conf = validate_field(field_name, raw_text)
-        
+
         # Calculate unified confidence
         final_conf = combined_confidence(seg_conf, rec_conf, val_conf)
-        
-        results[field_name] = clean_text
-        confidences[field_name] = round(final_conf, 2)
+
+        # If dataset returns the same class (like "handwritten") multiple times,
+        # append an index so it doesn't overwrite
+        unique_name = f"{field_name}_{i}" if field_name in results else field_name
+
+        results[unique_name] = clean_text
+        confidences[unique_name] = round(final_conf, 2)
 
     # 5. Build Record
     record = build_record(results)
