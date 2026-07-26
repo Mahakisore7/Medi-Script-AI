@@ -123,5 +123,16 @@ Currently, the local codebase uses the **un-trained, base versions** of YOLO and
 
 ---
 
-## Next Steps
-The local pipeline structure is complete! The next phase is to deploy this to Kaggle/Google Colab, download the real Roboflow dataset, and run the fine-tuning scripts to teach the models how to read cursive handwriting!
+## Usage (Running the Pipeline)
+
+To test the pipeline on your own medical prescriptions:
+1. Place your prescription image inside the `data/samples/` folder.
+2. Update the `image_path` variable in `demo.py` to point to your image.
+3. Run the end-to-end demo script from the terminal:
+```bash
+uv run --project ml python demo.py
+```
+
+## Technical Architecture & Results
+
+For a complete, highly-detailed breakdown of the exact Deep Learning models used (YOLOv8n, TrOCR), the datasets trained on (Kaggle/Roboflow), and the final metrics achieved in this project, please read the **[`PROJECT_SUMMARY.md`](./PROJECT_SUMMARY.md)** file!
