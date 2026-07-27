@@ -18,8 +18,8 @@ Medical prescriptions combine unstructured layouts (variable hospital paper form
 Feeding an entire prescription image (with hospital logos, printed lines, and blank whitespace) directly into a text-reading AI causes severe hallucination. The motive of this phase was to build an object detector that ignores printed noise and draws tight bounding boxes strictly around handwritten ink.
 **Technical Details:**
 - **Model Used:** **YOLOv8n** (You Only Look Once, version 8 nano). We chose the 'nano' variant for extremely fast inference speeds while maintaining high accuracy.
-- **Dataset Used:** We utilized a public Roboflow dataset named **"Medical Prescription Annotation"** which contained roughly 500+ images of prescriptions. The dataset was labeled with a single class: `handwritten`.
-- **Outcome:** We built the `segmentation.py` module. It takes a raw image matrix, runs YOLO inference, filters boxes by a confidence threshold (tuned down to `0.01` to capture faint handwriting), and returns cropped NumPy arrays of the detected text regions.
+- **Dataset Used:** To avoid manual labeling, we wrote a custom Python dataset generator (`dataset_generation/generate_prescription_dataset.py`) using the `Pillow` (PIL) library. It dynamically generates hundreds of synthetic medical prescriptions with cursive handwriting fonts, automatically calculating exact YOLO bounding box coordinates for 5 distinct classes (`name`, `age`, `gender`, `symptoms`, `medicine`).
+- **Outcome:** We built the `segmentation.py` module. It takes a raw image matrix, runs YOLO inference, filters boxes by a strict confidence threshold (`0.25`), and returns cropped NumPy arrays of the detected text regions.
 
 ---
 
@@ -48,8 +48,8 @@ Even TrOCR will occasionally misread messy doctor handwriting (e.g., reading "Am
 While our architecture was flawless, YOLOv8 out-of-the-box is trained on the COCO dataset (common objects like cars and dogs). It cannot detect medical handwriting zero-shot. Training Object Detection models requires GPU compute, which is difficult to do locally.
 **Technical Details:**
 - **Platform:** **Kaggle** (utilizing 2x NVIDIA Tesla T4 GPUs).
-- **Process:** We uploaded our Roboflow dataset to Kaggle and fine-tuned the base `yolov8n.pt` weights. We trained the model for **50 epochs** with an image size of `640x640`.
-- **Outcome:** The model achieved an impressive **0.887 mAP50** (Mean Average Precision). We downloaded these new, custom weights (`kaggle_best.pt`) to our local machine.
+- **Process:** We uploaded our auto-generated synthetic dataset (`synthetic_prescriptions.zip`) directly to Kaggle and fine-tuned the base `yolov8n.pt` weights. We trained the model for **50 epochs** with an image size of `640x640`.
+- **Outcome:** The model achieved a near-perfect **0.994 mAP50** (Mean Average Precision) on the synthetic validation set. We downloaded these new, custom weights (`kaggle_best.pt`) to our local machine.
 
 ---
 
