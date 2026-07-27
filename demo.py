@@ -6,9 +6,7 @@ from rx_recognition.pipeline import run_image_pipeline
 
 def main():
     # Load a sample image
-    # image_path = "data/samples/human_sample_01.jpeg"
-    image_path = r"C:\Users\yashw_d6scpoj\Downloads\Presc110.jpg"
-
+    image_path = "data/samples/synthetic_sample.jpg"
     print(f"Loading image from {image_path}...")
 
     if not os.path.exists(image_path):
