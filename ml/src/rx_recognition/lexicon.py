@@ -33,9 +33,11 @@ _lexicon_dir = Path(__file__).parent.parent.parent.parent / "data" / "lexicon"
 
 MEDICINE_LEXICON = _load_lexicon(_lexicon_dir / "medicines.csv")
 SYMPTOM_LEXICON = _load_lexicon(_lexicon_dir / "symptoms.csv")
+GENDER_LEXICON = ["Male", "Female", "Other", "M", "F", "O"]
 
 MEDICINE_INDEX = _build_index(MEDICINE_LEXICON)
 SYMPTOM_INDEX = _build_index(SYMPTOM_LEXICON)
+GENDER_INDEX = _build_index(GENDER_LEXICON)
 
 
 def get_lexicon(field_name: str, language: str = "en") -> tuple[list[str], dict[str, list[str]]]:
@@ -47,4 +49,6 @@ def get_lexicon(field_name: str, language: str = "en") -> tuple[list[str], dict[
         return MEDICINE_LEXICON, MEDICINE_INDEX
     elif field_name == "symptoms":
         return SYMPTOM_LEXICON, SYMPTOM_INDEX
+    elif field_name == "gender":
+        return GENDER_LEXICON, GENDER_INDEX
     return [], {}
