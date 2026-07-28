@@ -1,12 +1,18 @@
-import cv2
 import os
+import logging
+import cv2
 from pprint import pprint
-from rx_recognition.pipeline import run_image_pipeline
+from ml.src.rx_recognition.pipeline import run_image_pipeline
+
+# Show INFO logs so we can see LocateAnything output clearly
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
 
 def main():
     # Load a sample image
-    image_path = "data/samples/synthetic_sample.jpg"
+    # Switch between a real prescription and a test image
+    image_path = "data/samples/human_sample_01.jpeg"
+
     print(f"Loading image from {image_path}...")
 
     if not os.path.exists(image_path):
@@ -15,10 +21,14 @@ def main():
 
     image = cv2.imread(image_path)
 
+    # Set to "yolo" for fast, reliable extraction (Current Progress)
+    # Set to "locateanything" for experimental zero-shot extraction via local API
+    SEGMENTATION_MODE = "locateanything"
+
     print(
-        "\nRunning pipeline (YOLO Segmentation -> TrOCR Recognition -> Postprocessing)..."
+        f"\nRunning pipeline (Segmentation Mode: {SEGMENTATION_MODE.upper()} -> TrOCR Recognition -> Postprocessing)..."
     )
-    record = run_image_pipeline(image)
+    record = run_image_pipeline(image, mode=SEGMENTATION_MODE)
 
     print("\n--- Final Structured Record ---")
     pprint({k: v for k, v in record.items() if not k.startswith("_")})

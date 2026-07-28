@@ -9,7 +9,7 @@ from rx_recognition.record import build_record
 from rx_recognition.segmentation import segment_fields
 
 
-def run_image_pipeline(image: np.ndarray) -> dict:
+def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
     """
     Runs the full end-to-end pipeline.
     """
@@ -23,13 +23,13 @@ def run_image_pipeline(image: np.ndarray) -> dict:
     )
     print(f"\n[INFO] Loading YOLO model from: {yolo_weights}")
     use_yolo = os.path.exists(yolo_weights)
-    if not use_yolo:
+    if not use_yolo and mode == "yolo":
         print(
             f"[WARNING] Model file not found at {yolo_weights}! Falling back to dummy segmentation."
         )
 
     # 2. Segment
-    fields = segment_fields(clean_image, use_yolo=use_yolo, yolo_weights=yolo_weights)
+    fields = segment_fields(clean_image, use_yolo=use_yolo, yolo_weights=yolo_weights, mode=mode)
 
     # 3. Recognize & 4. Postprocess
     results = {}
