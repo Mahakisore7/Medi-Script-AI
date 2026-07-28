@@ -28,3 +28,7 @@ web/dist/
 # Env secrets
 .env
 *.env.local
+
+# Outputs and logs
+runs/
+demo_output*.txt
