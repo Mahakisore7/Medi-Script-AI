@@ -1,4 +1,5 @@
 import logging
+import os
 
 import numpy as np
 
@@ -15,7 +16,9 @@ class TrainedFieldDetector:
         # Download nano pretrained if path doesn't exist locally, or use trained weights
         self.model = YOLO(weights_path)
 
-    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
+    def detect_fields(
+        self, image: np.ndarray
+    ) -> list[tuple[str, np.ndarray, float, tuple[int, int, int, int]]]:
         # YOLO inference with lower confidence threshold
         results = self.model(image, verbose=False, conf=0.25)[0]
         crops = []
@@ -27,7 +30,7 @@ class TrainedFieldDetector:
 
             # Crop the image using the bounding box
             crop = image[y1:y2, x1:x2]
-            crops.append((field_name, crop, conf))
+            crops.append((field_name, crop, conf, (x1, y1, x2, y2)))
 
         return crops
 
@@ -49,7 +52,9 @@ class LocateAnythingFieldDetector:
 
         self.requests = requests
 
-    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
+    def detect_fields(
+        self, image: np.ndarray
+    ) -> list[tuple[str, np.ndarray, float, tuple[int, int, int, int]]]:
         import re
 
         import cv2
@@ -146,7 +151,14 @@ class LocateAnythingFieldDetector:
                             merged_y2 = min(h, merged_y2 + pad)
                             crop = image[merged_y1:merged_y2, merged_x1:merged_x2]
                             if crop.size > 0:
-                                crops.append((field_name, crop, 75.0))
+                                crops.append(
+                                    (
+                                        field_name,
+                                        crop,
+                                        75.0,
+                                        (merged_x1, merged_y1, merged_x2, merged_y2),
+                                    )
+                                )
                                 logging.info(
                                     f"  Field '{field_name}': merged {len(boxes_in_field)} boxes → "
                                     f"crop [{merged_x1},{merged_y1},{merged_x2},{merged_y2}]"
@@ -170,20 +182,126 @@ class LocateAnythingFieldDetector:
         return crops
 
 
+class DBNetTextDetector:
+    """
+    General text detector backed by OpenCV's DB text detector wrapper.
+    Requires a local ONNX model file.
+    """
+
+    def __init__(
+        self,
+        model_path: str,
+        binary_threshold: float = 0.3,
+        polygon_threshold: float = 0.5,
+    ):
+        import cv2
+
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(
+                f"DBNet model file not found at {model_path}. "
+                "Download an ONNX DBNet model and place it there."
+            )
+
+        self.cv2 = cv2
+        self.model = cv2.dnn_TextDetectionModel_DB(model_path)
+        self.model.setBinaryThreshold(binary_threshold)
+        self.model.setPolygonThreshold(polygon_threshold)
+        self.model.setInputParams(
+            scale=1.0 / 255.0,
+            size=(736, 736),
+            mean=(122.67891434, 116.66876762, 104.00698793),
+        )
+
+    def detect_fields(
+        self, image: np.ndarray
+    ) -> list[tuple[str, np.ndarray, float, tuple[int, int, int, int]]]:
+        if len(image.shape) == 2:
+            bgr_image = self.cv2.cvtColor(image, self.cv2.COLOR_GRAY2BGR)
+        else:
+            bgr_image = image.copy()
+
+        detections = []
+        corners, confidences = self.model.detect(bgr_image)
+        if corners is None or confidences is None:
+            return detections
+
+        height, width = bgr_image.shape[:2]
+        for idx, box in enumerate(corners):
+            points = np.array(box, dtype=np.int32).reshape(-1, 2)
+            x1 = max(0, int(points[:, 0].min()))
+            y1 = max(0, int(points[:, 1].min()))
+            x2 = min(width, int(points[:, 0].max()))
+            y2 = min(height, int(points[:, 1].max()))
+            if x2 <= x1 or y2 <= y1:
+                continue
+            crop = bgr_image[y1:y2, x1:x2]
+            conf = float(confidences[idx]) * 100.0 if idx < len(confidences) else 50.0
+            detections.append((f"text_{idx}", crop, conf, (x1, y1, x2, y2)))
+
+        detections.sort(key=lambda item: (item[3][1], item[3][0]))
+        return detections
+
+
 def segment_fields(
-    image: np.ndarray, use_yolo: bool = False, yolo_weights: str = "yolov8n.pt", mode: str = "yolo"
-) -> list[tuple[str, np.ndarray, float]]:
+    image: np.ndarray,
+    use_yolo: bool = False,
+    yolo_weights: str = "yolov8n.pt",
+    mode: str = "yolo",
+    return_debug: bool = False,
+    dbnet_model_path: str | None = None,
+) -> (
+    list[tuple[str, np.ndarray, float]]
+    | tuple[list[tuple[str, np.ndarray, float]], list[dict[str, object]]]
+):
     """
     Placeholder segmentation module.
     Splits the image horizontally into 5 rough chunks corresponding to our 5 fields.
     If mode is 'yolo', uses the trained YOLO model instead.
     If mode is 'locateanything', uses the local LocateAnything API server.
     """
-    if mode == "locateanything":
+    debug_items: list[dict[str, object]] = []
+
+    if mode == "dbnet":
+        if dbnet_model_path is None:
+            dbnet_model_path = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "..", "models", "dbnet.onnx")
+            )
+        try:
+            detector = DBNetTextDetector(dbnet_model_path)
+            crops = detector.detect_fields(image)
+            if len(crops) > 0:
+                fields = []
+                for field_name, crop, conf, bbox in crops:
+                    fields.append((field_name, crop, conf))
+                    debug_items.append(
+                        {
+                            "field_name": field_name,
+                            "seg_conf": conf,
+                            "bbox": bbox,
+                            "detector": "dbnet",
+                        }
+                    )
+                return (fields, debug_items) if return_debug else fields
+            logging.warning("DBNet detected no text regions! Falling back to dummy segmentation.")
+        except Exception as error:
+            logging.warning(f"DBNet detection failed: {error}. Falling back to dummy segmentation.")
+
+    elif mode == "locateanything":
         detector = LocateAnythingFieldDetector()
         crops = detector.detect_fields(image)
         if len(crops) > 0:
-            return crops
+            fields = []
+            for field_name, crop, conf, bbox in crops:
+                fields.append((field_name, crop, conf))
+                debug_items.append(
+                    {
+                        "field_name": field_name,
+                        "seg_conf": conf,
+                        "bbox": bbox,
+                        "detector": "locateanything",
+                    }
+                )
+            return (fields, debug_items) if return_debug else fields
         else:
             logging.warning(
                 "LocateAnything failed or server offline! Falling back to dummy segmentation."
@@ -193,7 +311,18 @@ def segment_fields(
         detector = TrainedFieldDetector(yolo_weights)
         crops = detector.detect_fields(image)
         if len(crops) > 0:
-            return crops
+            fields = []
+            for field_name, crop, conf, bbox in crops:
+                fields.append((field_name, crop, conf))
+                debug_items.append(
+                    {
+                        "field_name": field_name,
+                        "seg_conf": conf,
+                        "bbox": bbox,
+                        "detector": "yolo",
+                    }
+                )
+            return (fields, debug_items) if return_debug else fields
         else:
             logging.warning("YOLO detected no fields! Falling back to dummy segmentation.")
 
@@ -209,5 +338,13 @@ def segment_fields(
         crop = image[y1:y2, 0:width]
         # For dummy segmentation, we assign a hardcoded confidence of 50.0
         crops.append((field, crop, 50.0))
+        debug_items.append(
+            {
+                "field_name": field,
+                "seg_conf": 50.0,
+                "bbox": (0, y1, width, y2),
+                "detector": "dummy",
+            }
+        )
 
-    return crops
+    return (crops, debug_items) if return_debug else crops

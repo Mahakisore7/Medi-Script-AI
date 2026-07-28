@@ -21,14 +21,20 @@ def main():
 
     image = cv2.imread(image_path)
 
-    # Set to "yolo" for fast, reliable extraction (Current Progress)
-    # Set to "locateanything" for experimental zero-shot extraction via local API
-    SEGMENTATION_MODE = "locateanything"
+    # Set to "yolo" for the original field detector
+    # Set to "dbnet" for text-region detection followed by field mapping
+    # Set to "locateanything" for the experimental zero-shot local API mode
+    SEGMENTATION_MODE = os.getenv("SEGMENTATION_MODE", "yolo").lower()
+    DBNET_MODEL_PATH = os.getenv("DBNET_MODEL_PATH")
 
     print(
         f"\nRunning pipeline (Segmentation Mode: {SEGMENTATION_MODE.upper()} -> TrOCR Recognition -> Postprocessing)..."
     )
-    record = run_image_pipeline(image, mode=SEGMENTATION_MODE)
+    record = run_image_pipeline(
+        image,
+        mode=SEGMENTATION_MODE,
+        dbnet_model_path=DBNET_MODEL_PATH,
+    )
 
     print("\n--- Final Structured Record ---")
     pprint({k: v for k, v in record.items() if not k.startswith("_")})
@@ -38,6 +44,9 @@ def main():
 
     print("\n--- Raw OCR Text (Before Lexicon Correction) ---")
     pprint(record.get("_raw_fields", {}))
+
+    print("\n--- Debug Artifacts ---")
+    print(record.get("_debug_dir", "No debug directory created"))
 
 
 if __name__ == "__main__":
