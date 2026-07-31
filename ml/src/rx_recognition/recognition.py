@@ -98,7 +98,14 @@ def recognize_text(image: np.ndarray) -> tuple[str, float]:
     """
     global _recognizer
     if _recognizer is None:
-        # NOTE: Once you fine-tune the model on Kaggle, change this path to "./trocr-rx-finetuned"
-        _recognizer = TrOCRRecognizer("microsoft/trocr-base-handwritten")
+        import os
+        # Check if the fine-tuned model from Kaggle/Colab has been downloaded
+        finetuned_path = "runs/trocr/trocr-medical-best"
+        if os.path.exists(finetuned_path):
+            logging.info(f"✨ Found fine-tuned TrOCR model at {finetuned_path}! Using it for pipeline.")
+            _recognizer = TrOCRRecognizer(finetuned_path)
+        else:
+            logging.warning(f"Fine-tuned model not found at {finetuned_path}. Falling back to base model.")
+            _recognizer = TrOCRRecognizer("microsoft/trocr-base-handwritten")
 
     return _recognizer.recognize_text(image)

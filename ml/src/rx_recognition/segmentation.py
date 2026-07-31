@@ -16,9 +16,15 @@ class TrainedFieldDetector:
         self.model = YOLO(weights_path)
 
     def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
+        import cv2
+        import os
+        
         # YOLO inference with lower confidence threshold
         results = self.model(image, verbose=False, conf=0.25)[0]
         crops = []
+        
+        # Create debug image copy
+        debug_img = image.copy()
 
         for box in results.boxes:
             field_name = self.model.names[int(box.cls)]
@@ -28,6 +34,19 @@ class TrainedFieldDetector:
             # Crop the image using the bounding box
             crop = image[y1:y2, x1:x2]
             crops.append((field_name, crop, conf))
+            
+            # Draw bounding box and label for debugging
+            cv2.rectangle(debug_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            label = f"{field_name} {conf:.1f}%"
+            cv2.putText(debug_img, label, (x1, max(y1 - 10, 0)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        # Save the debug image
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        debug_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "..", "runs", "debug"))
+        os.makedirs(debug_dir, exist_ok=True)
+        debug_path = os.path.join(debug_dir, "segmentation_debug.jpg")
+        cv2.imwrite(debug_path, debug_img)
+        logging.info(f"Saved YOLO segmentation debug image to: {debug_path}")
 
         return crops
 

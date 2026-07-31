@@ -1,3 +1,4 @@
+import re
 from rapidfuzz import fuzz, process
 
 from rx_recognition.lexicon import get_lexicon
@@ -23,6 +24,13 @@ def validate_field(field_name: str, raw_text: str, language: str = "en") -> tupl
     raw_text = raw_text.strip()
     if not raw_text:
         return "", 0.0
+
+    # Phase 2 Paper Improvement: Symbol-aware post-processing
+    # Fix common TrOCR hallucinations with numbers and medical symbols
+    # e.g., "1H1" -> "1+1", "1H1H1" -> "1+1+1"
+    raw_text = re.sub(r'(\d)[Hh](\d)', r'\1+\2', raw_text)
+    # Fix dropped slashes between dosages e.g., "400mg16mg" -> "400mg/16mg"
+    raw_text = re.sub(r'(mg|g|ml)(\d+)(mg|g|ml)', r'\1/\2\3', raw_text)
 
     lexicon, index = get_lexicon(field_name, language)
     

@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 def main():
     # Load a sample image
     # Switch between a real prescription and a test image
-    image_path = "data/samples/human_sample_01.jpeg"
+    image_path = r"C:\Users\yashw_d6scpoj\Desktop\Academics\3rd Year\Sem 5\Deep Learning\Project\Medi-Script-AI\my sample\original_prescription_1.jpg"
 
     print(f"Loading image from {image_path}...")
 
@@ -23,7 +23,8 @@ def main():
 
     # Set to "yolo" for fast, reliable extraction (Current Progress)
     # Set to "locateanything" for experimental zero-shot extraction via local API
-    SEGMENTATION_MODE = "locateanything"
+    SEGMENTATION_MODE = "yolo"
+
 
     print(
         f"\nRunning pipeline (Segmentation Mode: {SEGMENTATION_MODE.upper()} -> TrOCR Recognition -> Postprocessing)..."
