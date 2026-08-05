@@ -87,6 +87,7 @@ def train():
         num_train_epochs=args_cmd.epochs,
         eval_strategy="epoch",
         save_strategy="epoch",
+        save_total_limit=1,  # Only keep the best/latest checkpoint to save disk space
         predict_with_generate=True,
         report_to="none",
         logging_steps=50,

@@ -24,7 +24,9 @@ class TrOCRRecognizer:
             # We use manual instantiation as done in train_trocr to avoid FastTokenizer bugs
             self.processor = TrOCRProcessor(
                 image_processor=ViTImageProcessor.from_pretrained(model_path),
-                tokenizer=RobertaTokenizer.from_pretrained(model_path),
+                # The tokenizer files are not saved by the trainer by default, and we didn't change the vocab, 
+                # so we can always safely load it from the base model!
+                tokenizer=RobertaTokenizer.from_pretrained("microsoft/trocr-base-handwritten"),
             )
             self.model = VisionEncoderDecoderModel.from_pretrained(model_path).to(self.device)
 
