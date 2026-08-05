@@ -23,7 +23,8 @@ class FieldCropDataset(Dataset):
         import os
 
         # Resolve image path relative to the manifest csv location
-        img_path = row.image_path
+        # Replace backslashes with forward slashes in case manifest was generated on Windows
+        img_path = str(row.image_path).replace("\\", "/")
         if not os.path.isabs(img_path):
             img_path = os.path.join(self.manifest_dir, img_path)
 
