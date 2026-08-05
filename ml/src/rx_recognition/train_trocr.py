@@ -29,10 +29,18 @@ def compute_metrics(pred):
 
 def train():
     """
-    Local smoke test for TrOCR fine-tuning.
-    We run only 2 steps to ensure everything compiles and runs before taking this to Kaggle.
+    TrOCR fine-tuning script.
     """
-    print("Starting TrOCR smoke test...")
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--train_manifest", type=str, default="")
+    parser.add_argument("--val_manifest", type=str, default="")
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--batch_size", type=int, default=2)
+    args_cmd = parser.parse_args()
+
+    print("Starting TrOCR fine-tuning...")
     global processor
 
     from transformers import RobertaTokenizer, ViTImageProcessor
@@ -47,12 +55,20 @@ def train():
     model.config.pad_token_id = processor.tokenizer.pad_token_id
     model.config.vocab_size = model.config.decoder.vocab_size
 
-    # Get absolute paths to data
+    # Get absolute paths to data if not provided
     script_dir = os.path.dirname(os.path.abspath(__file__))
     data_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "data", "trocr-dataset"))
 
-    train_csv = os.path.join(data_dir, "train_manifest.csv")
-    val_csv = os.path.join(data_dir, "val_manifest.csv")
+    train_csv = (
+        args_cmd.train_manifest
+        if args_cmd.train_manifest
+        else os.path.join(data_dir, "train_manifest.csv")
+    )
+    val_csv = (
+        args_cmd.val_manifest
+        if args_cmd.val_manifest
+        else os.path.join(data_dir, "val_manifest.csv")
+    )
 
     if not os.path.exists(train_csv):
         print(f"Dataset not found at {train_csv}. Run generate_trocr_data.py first.")
@@ -61,18 +77,19 @@ def train():
     train_ds = FieldCropDataset(train_csv, processor)
     val_ds = FieldCropDataset(val_csv, processor)
 
-    # Smoke test arguments
+    # Training arguments
     args = Seq2SeqTrainingArguments(
         output_dir="./trocr-rx-finetuned",
-        per_device_train_batch_size=1,  # small — raise cautiously
-        gradient_accumulation_steps=1,
-        per_device_eval_batch_size=1,
-        fp16=False,  # disable fp16 since we don't have GPU
-        max_steps=2,  # ONLY 2 STEPS FOR SMOKE TEST!
-        eval_strategy="no",
-        save_strategy="no",
+        per_device_train_batch_size=args_cmd.batch_size,
+        gradient_accumulation_steps=4,
+        per_device_eval_batch_size=args_cmd.batch_size,
+        fp16=False,  # CPU doesn't support fp16 well
+        num_train_epochs=args_cmd.epochs,
+        eval_strategy="epoch",
+        save_strategy="epoch",
         predict_with_generate=True,
-        report_to="none",  # Disable wandb for local smoke test
+        report_to="none",
+        logging_steps=50,
     )
 
     trainer = Seq2SeqTrainer(

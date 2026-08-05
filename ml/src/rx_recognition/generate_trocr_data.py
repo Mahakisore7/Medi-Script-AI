@@ -1,57 +1,69 @@
 import os
 
 import pandas as pd
-from PIL import Image, ImageDraw, ImageFont
 
 
-def generate_dummy_data(output_dir="data/trocr-dataset"):
-    print(f"Generating dummy TrOCR data in {output_dir}...")
-    os.makedirs(output_dir, exist_ok=True)
+def generate_trocr_manifests(dataset_dir):
+    print(f"Processing TrOCR dataset in {dataset_dir}...")
 
-    # We will generate 5 tiny images with dummy text
-    records = []
+    # Paths for training data
+    train_csv = os.path.join(dataset_dir, "Training", "training_labels.csv")
+    train_img_dir = os.path.join(dataset_dir, "Training", "training_words")
 
-    words = ["Paracetamol", "Amoxicillin", "500mg", "Twice daily", "Ibuprofen"]
+    # Paths for validation data
+    val_csv = os.path.join(dataset_dir, "Validation", "validation_labels.csv")
+    val_img_dir = os.path.join(dataset_dir, "Validation", "validation_words")
 
-    # Try to load a basic font, or fallback to default
-    try:
-        font = ImageFont.truetype("arial.ttf", 32)
-    except OSError:
-        font = ImageFont.load_default()
+    output_dir = os.path.dirname(dataset_dir)  # data/trocr-dataset
 
-    for i, word in enumerate(words):
-        img_path = os.path.join(output_dir, f"dummy_{i}.jpg")
+    # Function to process a split
+    def process_split(csv_path, img_dir, split_name):
+        if not os.path.exists(csv_path):
+            print(f"ERROR: Could not find {csv_path}")
+            return None
 
-        # Create a white background image (roughly the size of a cropped word/field)
-        img = Image.new("RGB", (300, 100), color="white")
-        draw = ImageDraw.Draw(img)
+        print(f"Processing {split_name} split...")
+        df = pd.read_csv(csv_path)
 
-        # Draw the text
-        draw.text((20, 30), word, fill="black", font=font)
+        records = []
+        for _, row in df.iterrows():
+            img_filename = str(row["IMAGE"])
+            img_path_abs = os.path.abspath(os.path.join(img_dir, img_filename))
+            # Save relative path so it works when uploaded to Kaggle
+            img_path = os.path.relpath(img_path_abs, output_dir)
 
-        # Save image
-        img.save(img_path)
+            # The exact ground truth text
+            transcription = str(row["MEDICINE_NAME"])
 
-        # Record in manifest
-        records.append(
-            {
-                "image_path": img_path,
-                "field_type": "medicine_name" if i in [0, 1, 4] else "dosage",
-                "transcription": word,
-            }
-        )
+            if os.path.exists(img_path_abs):
+                records.append(
+                    {
+                        "image_path": img_path,
+                        "field_type": "medicine",
+                        "transcription": transcription,
+                    }
+                )
+            else:
+                print(f"Warning: Image {img_path_abs} not found.")
 
-    # Create manifest
-    df = pd.DataFrame(records)
-    csv_path = os.path.join(output_dir, "train_manifest.csv")
-    df.to_csv(csv_path, index=False)
+        # Create manifest
+        manifest_df = pd.DataFrame(records)
+        out_csv = os.path.join(output_dir, f"{split_name}_manifest.csv")
+        manifest_df.to_csv(out_csv, index=False)
+        print(f"Saved {len(records)} records to {out_csv}")
+        return manifest_df
 
-    # For the smoke test, we'll just use the same 5 images for validation too
-    val_csv_path = os.path.join(output_dir, "val_manifest.csv")
-    df.to_csv(val_csv_path, index=False)
-
-    print(f"Successfully generated 5 images. Manifests saved to {csv_path} and {val_csv_path}.")
+    process_split(train_csv, train_img_dir, "train")
+    process_split(val_csv, val_img_dir, "val")
+    print("Done generating TrOCR manifests!")
 
 
 if __name__ == "__main__":
-    generate_dummy_data()
+    # Point to the Kaggle dataset extracted folder
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
+    dataset_folder = os.path.join(
+        project_root, "data", "trocr-dataset", "Doctor’s Handwritten Prescription BD dataset"
+    )
+
+    generate_trocr_manifests(dataset_folder)

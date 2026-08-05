@@ -9,8 +9,11 @@ class FieldCropDataset(Dataset):
     """
 
     def __init__(self, manifest_csv: str, processor):
+        import os
+
         self.df = pd.read_csv(manifest_csv)
         self.processor = processor
+        self.manifest_dir = os.path.dirname(os.path.abspath(manifest_csv))
 
     def __len__(self):
         return len(self.df)
@@ -19,9 +22,11 @@ class FieldCropDataset(Dataset):
         row = self.df.iloc[idx]
         import os
 
-        # resolve relative to ml/ directory
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        img_path = os.path.join(base_dir, "ml", row.image_path)
+        # Resolve image path relative to the manifest csv location
+        img_path = row.image_path
+        if not os.path.isabs(img_path):
+            img_path = os.path.join(self.manifest_dir, img_path)
+
         image = Image.open(img_path).convert("RGB")
         pixel_values = self.processor(image, return_tensors="pt").pixel_values.squeeze()
 

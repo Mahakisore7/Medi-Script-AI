@@ -15,14 +15,15 @@ class TrainedFieldDetector:
         # Download nano pretrained if path doesn't exist locally, or use trained weights
         self.model = YOLO(weights_path)
 
-    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
-        import cv2
+    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float, str]]:
         import os
-        
+
+        import cv2
+
         # YOLO inference with lower confidence threshold
         results = self.model(image, verbose=False, conf=0.25)[0]
         crops = []
-        
+
         # Create debug image copy
         debug_img = image.copy()
 
@@ -33,12 +34,20 @@ class TrainedFieldDetector:
 
             # Crop the image using the bounding box
             crop = image[y1:y2, x1:x2]
-            crops.append((field_name, crop, conf))
-            
+            crops.append((field_name, crop, conf, ""))
+
             # Draw bounding box and label for debugging
             cv2.rectangle(debug_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
             label = f"{field_name} {conf:.1f}%"
-            cv2.putText(debug_img, label, (x1, max(y1 - 10, 0)), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            cv2.putText(
+                debug_img,
+                label,
+                (x1, max(y1 - 10, 0)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 255),
+                2,
+            )
 
         # Save the debug image
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,6 +56,77 @@ class TrainedFieldDetector:
         debug_path = os.path.join(debug_dir, "segmentation_debug.jpg")
         cv2.imwrite(debug_path, debug_img)
         logging.info(f"Saved YOLO segmentation debug image to: {debug_path}")
+
+        return crops
+
+
+class TextLineDetector:
+    """
+    Uses EasyOCR (CRAFT under the hood) to find tight bounding boxes around every single line of text.
+    We don't use EasyOCR's recognition, we just use its bounding boxes to feed to our custom TrOCR model.
+    """
+
+    def __init__(self):
+        import easyocr
+        import torch
+
+        logging.info("Loading EasyOCR (CRAFT) for robust text detection...")
+        # Use GPU if available for faster detection
+        use_gpu = torch.cuda.is_available()
+        self.reader = easyocr.Reader(["en"], gpu=use_gpu)
+
+    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float, str]]:
+        import os
+
+        import cv2
+
+        # EasyOCR returns: [([[x, y], [x, y], [x, y], [x, y]], text, conf), ...]
+        results = self.reader.readtext(image, detail=1, paragraph=False)
+
+        crops = []
+        debug_img = image.copy()
+
+        for i, (bbox, text, conf) in enumerate(results):
+            # bbox is a list of 4 points: [top-left, top-right, bottom-right, bottom-left]
+            xs = [p[0] for p in bbox]
+            ys = [p[1] for p in bbox]
+            x1, x2 = int(min(xs)), int(max(xs))
+            y1, y2 = int(min(ys)), int(max(ys))
+
+            # Add a small padding to the box so TrOCR has some breathing room
+            pad = 5
+            h, w = image.shape[:2]
+            x1 = max(0, x1 - pad)
+            y1 = max(0, y1 - pad)
+            x2 = min(w, x2 + pad)
+            y2 = min(h, y2 + pad)
+
+            crop = image[y1:y2, x1:x2]
+
+            if crop.size > 0:
+                # We name the fields 'line_0', 'line_1', etc.
+                field_name = f"line_{i}"
+                crops.append((field_name, crop, conf * 100.0, text))
+
+                # Draw on debug image
+                cv2.rectangle(debug_img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                cv2.putText(
+                    debug_img,
+                    f"L{i}",
+                    (x1, max(y1 - 5, 0)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (0, 0, 255),
+                    1,
+                )
+
+        # Save the debug image
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        debug_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "..", "runs", "debug"))
+        os.makedirs(debug_dir, exist_ok=True)
+        debug_path = os.path.join(debug_dir, "segmentation_debug.jpg")
+        cv2.imwrite(debug_path, debug_img)
+        logging.info(f"Saved CRAFT text detection debug image to: {debug_path}")
 
         return crops
 
@@ -68,7 +148,7 @@ class LocateAnythingFieldDetector:
 
         self.requests = requests
 
-    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float]]:
+    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float, str]]:
         import re
 
         import cv2
@@ -165,7 +245,7 @@ class LocateAnythingFieldDetector:
                             merged_y2 = min(h, merged_y2 + pad)
                             crop = image[merged_y1:merged_y2, merged_x1:merged_x2]
                             if crop.size > 0:
-                                crops.append((field_name, crop, 75.0))
+                                crops.append((field_name, crop, 75.0, ""))
                                 logging.info(
                                     f"  Field '{field_name}': merged {len(boxes_in_field)} boxes → "
                                     f"crop [{merged_x1},{merged_y1},{merged_x2},{merged_y2}]"
@@ -190,15 +270,23 @@ class LocateAnythingFieldDetector:
 
 
 def segment_fields(
-    image: np.ndarray, use_yolo: bool = False, yolo_weights: str = "yolov8n.pt", mode: str = "yolo"
-) -> list[tuple[str, np.ndarray, float]]:
+    image: np.ndarray, use_yolo: bool = False, yolo_weights: str = "yolov8n.pt", mode: str = "text"
+) -> list[tuple[str, np.ndarray, float, str]]:
     """
-    Placeholder segmentation module.
-    Splits the image horizontally into 5 rough chunks corresponding to our 5 fields.
-    If mode is 'yolo', uses the trained YOLO model instead.
+    Extracts bounding boxes from the image.
+    If mode is 'text', uses EasyOCR (CRAFT) to detect individual text lines.
+    If mode is 'yolo', uses the trained YOLO model to find semantic fields.
     If mode is 'locateanything', uses the local LocateAnything API server.
     """
-    if mode == "locateanything":
+    if mode in ("text", "easyocr"):
+        detector = TextLineDetector()
+        crops = detector.detect_fields(image)
+        if len(crops) > 0:
+            return crops
+        else:
+            logging.warning("Text detection failed! Falling back to dummy segmentation.")
+
+    elif mode == "locateanything":
         detector = LocateAnythingFieldDetector()
         crops = detector.detect_fields(image)
         if len(crops) > 0:
@@ -227,6 +315,6 @@ def segment_fields(
         y2 = height if i == 4 else (i + 1) * step
         crop = image[y1:y2, 0:width]
         # For dummy segmentation, we assign a hardcoded confidence of 50.0
-        crops.append((field, crop, 50.0))
+        crops.append((field, crop, 50.0, ""))
 
     return crops
