@@ -62,8 +62,8 @@ class TrainedFieldDetector:
 
 class TextLineDetector:
     """
-    Uses EasyOCR (CRAFT under the hood) to find tight bounding boxes around every single line of text.
-    We don't use EasyOCR's recognition, we just use its bounding boxes to feed to our custom TrOCR model.
+    Uses EasyOCR (CRAFT under the hood) to find tight bounding boxes.
+    We don't use EasyOCR's recognition, we just use its bounding boxes.
     """
 
     def __init__(self):
@@ -274,11 +274,11 @@ def segment_fields(
 ) -> list[tuple[str, np.ndarray, float, str]]:
     """
     Extracts bounding boxes from the image.
-    If mode is 'text', uses EasyOCR (CRAFT) to detect individual text lines.
+    If mode is 'text' or 'hybrid', uses EasyOCR (CRAFT) to detect individual text lines.
     If mode is 'yolo', uses the trained YOLO model to find semantic fields.
     If mode is 'locateanything', uses the local LocateAnything API server.
     """
-    if mode in ("text", "easyocr"):
+    if mode in ("text", "easyocr", "hybrid"):
         detector = TextLineDetector()
         crops = detector.detect_fields(image)
         if len(crops) > 0:

@@ -1,5 +1,6 @@
 import os
 import logging
+import sys
 import cv2
 from pprint import pprint
 from ml.src.rx_recognition.pipeline import run_image_pipeline
@@ -9,13 +10,16 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
 
 def main():
-    # Load a sample image
-    # Path to your test image (using a validation image from the YOLO dataset)
-    image_path = os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__), "..", "my sample", "original_prescription_1.jpg"
+    # Allow passing an image path via command line, otherwise default to the sample
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+    else:
+        # Default test image
+        image_path = os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__), "..", "my sample", "original_prescription_1.jpg"
+            )
         )
-    )
 
     if not os.path.exists(image_path):
         print(f"Error: Image not found at {image_path}")
@@ -26,8 +30,9 @@ def main():
     # Set to "yolo" for YOLO segmentation + TrOCR recognition
     # Set to "text" for CRAFT line detection + TrOCR recognition + Fuzzy parsing
     # Set to "easyocr" for EasyOCR detection+recognition + Fuzzy parsing
-    # Set to "yolo+easyocr" for YOLO segmentation + EasyOCR per crop (BEST)
-    SEGMENTATION_MODE = "yolo"
+    # Set to "yolo+easyocr" for YOLO segmentation + EasyOCR per crop
+    # Set to "hybrid" for EasyOCR detection+recognition -> Parsing -> TrOCR on Rx lines
+    SEGMENTATION_MODE = "hybrid"
 
     print(
         f"\nRunning pipeline (Segmentation Mode: {SEGMENTATION_MODE.upper()} -> TrOCR Recognition -> Postprocessing)..."

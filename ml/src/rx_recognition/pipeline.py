@@ -8,7 +8,7 @@ from rx_recognition.record import build_record
 from rx_recognition.segmentation import segment_fields
 
 # Minimum EasyOCR confidence to keep a detection (Step 4: Confidence Filtering)
-MIN_OCR_CONFIDENCE = 40.0
+MIN_OCR_CONFIDENCE = 0.0
 
 
 def _run_easyocr_on_crop(reader, crop):
@@ -17,7 +17,7 @@ def _run_easyocr_on_crop(reader, crop):
     texts = []
     total_conf = 0
     count = 0
-    for bbox, text, conf in results:
+    for _bbox, text, conf in results:
         conf_pct = conf * 100.0
         if conf_pct >= MIN_OCR_CONFIDENCE and text.strip():
             texts.append(text.strip())
@@ -35,7 +35,8 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
       - 'yolo': YOLO segmentation → TrOCR recognition
       - 'text': CRAFT line detection → TrOCR recognition → Fuzzy parsing
       - 'easyocr': EasyOCR detection+recognition → Fuzzy parsing
-      - 'yolo+easyocr': YOLO segmentation → EasyOCR recognition per crop (BEST)
+      - 'yolo+easyocr': YOLO segmentation → EasyOCR recognition per crop
+      - 'hybrid': EasyOCR detection+recognition → Parsing → TrOCR on Rx lines (BEST)
       - 'locateanything': LocateAnything API → TrOCR recognition
     """
     clean_image = image
@@ -101,8 +102,9 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
     # 3. Recognize
     results = {}
     confidences = {}
+    crops_dict = {}  # Keep track of crops for hybrid mode
     for i, (field_name, crop, seg_conf, ocr_text) in enumerate(fields):
-        if mode == "easyocr":
+        if mode in ("easyocr", "hybrid"):
             raw_text = ocr_text
             rec_conf = seg_conf
             # Step 4: Confidence filtering — skip low-confidence detections
@@ -111,7 +113,7 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
         else:
             raw_text, rec_conf = recognize_text(crop, use_base_model=False)
 
-        if mode in ("text", "easyocr"):
+        if mode in ("text", "easyocr", "hybrid"):
             clean_text = raw_text
             val_conf = 100.0
         else:
@@ -122,14 +124,15 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
 
         results[unique_name] = clean_text
         confidences[unique_name] = round(final_conf, 2)
+        crops_dict[unique_name] = crop
 
     print("\n[DEBUG] Raw Text Lines Detected:")
     import pprint
 
     pprint.pprint(results)
 
-    # 4. Parse if mode is "text" or "easyocr"
-    if mode in ("text", "easyocr"):
+    # 4. Parse if mode uses line-by-line reading
+    if mode in ("text", "easyocr", "hybrid"):
         import re
 
         from rx_recognition.medical_lexicon import (
@@ -144,12 +147,12 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
         for k, v in results.items():
             if k.startswith("line_"):
                 idx = int(k.split("_")[1])
-                sorted_lines.append((idx, v))
+                sorted_lines.append((idx, v, k))
         sorted_lines.sort(key=lambda x: x[0])
-        lines = [v for _, v in sorted_lines if v.strip()]
+        lines = [(v, k) for _, v, k in sorted_lines if v.strip()]
 
         parsed = {"name": "", "age": "", "gender": "", "symptoms": "", "medicine": ""}
-        full_text = " \n ".join(lines)
+        full_text = " \n ".join([v for v, _ in lines])
 
         # Age/Gender heuristic (e.g., 19/M)
         age_gender_match = re.search(r"\(?(\d{1,3})\s*[/\-]\s*([A-Za-z])\)?", full_text)
@@ -161,7 +164,7 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
         symptoms = []
         medicines = []
 
-        for i, line in enumerate(lines):
+        for _i, (line, line_key) in enumerate(lines):
             first_word = line.split()[0] if line.split() else line
             section_match = fuzzy_match_section(first_word)
             if not section_match and ":" in line:
@@ -205,6 +208,14 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
                     symptoms.append(corrected)
             elif current_section in ("Rx", "Adv"):
                 if line:
+                    if mode == "hybrid":
+                        # RUN TROCR ON THIS SPECIFIC CROP!
+                        crop_img = crops_dict[line_key]
+                        print("[DEBUG] Hybrid Mode: Found Rx line. Running TrOCR on crop...")
+                        trocr_text, _ = recognize_text(crop_img, use_base_model=False)
+                        print(f"        EasyOCR read: '{line}' -> TrOCR read: '{trocr_text}'")
+                        line = trocr_text
+
                     corrected = correct_medicine_name(line)
                     corrected = parse_dosage(corrected)
                     medicines.append(corrected)
