@@ -17,7 +17,10 @@ def main():
         # Default test image
         image_path = os.path.abspath(
             os.path.join(
-                os.path.dirname(__file__), "..", "my sample", "original_prescription_1.jpg"
+                os.path.dirname(__file__),
+                "..",
+                "my sample",
+                "original_prescription_1.jpg",
             )
         )
 
@@ -32,7 +35,8 @@ def main():
     # Set to "easyocr" for EasyOCR detection+recognition + Fuzzy parsing
     # Set to "yolo+easyocr" for YOLO segmentation + EasyOCR per crop
     # Set to "hybrid" for EasyOCR detection+recognition -> Parsing -> TrOCR on Rx lines
-    SEGMENTATION_MODE = "hybrid"
+    # Set to "locateanything" for LocateAnything API + TrOCR recognition
+    SEGMENTATION_MODE = "locateanything"
 
     print(
         f"\nRunning pipeline (Segmentation Mode: {SEGMENTATION_MODE.upper()} -> TrOCR Recognition -> Postprocessing)..."
