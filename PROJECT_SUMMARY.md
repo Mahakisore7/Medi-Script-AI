@@ -43,7 +43,7 @@ Even TrOCR will occasionally misread messy doctor handwriting (e.g., reading "Am
 
 ---
 
-## 5. Phase 4: Cloud Training and Fine-Tuning
+## 5. Phase 4: Cloud Training and Fine-Tuning (YOLO)
 **Motive:**
 While our architecture was flawless, YOLOv8 out-of-the-box is trained on the COCO dataset (common objects like cars and dogs). It cannot detect medical handwriting zero-shot. Training Object Detection models requires GPU compute, which is difficult to do locally.
 **Technical Details:**
@@ -63,4 +63,23 @@ To create a seamless, end-to-end product that a user can interact with easily.
   3. Loops through all crops and passes them to the TrOCR pipeline.
   4. Runs the output through the fuzzy matcher.
   5. Compiles everything into a structured JSON dictionary.
-- **Outcome:** A production-ready, modular Deep Learning pipeline that successfully detects, crops, reads, and corrects real-world medical handwriting.
+- **Outcome:** A modular pipeline that successfully detects, crops, reads, and corrects handwriting.
+
+---
+
+## 7. Phase 6: Cloud Fine-Tuning (TrOCR) & Key Discoveries
+**Motive:**
+The base TrOCR model struggled heavily with cursive medical vocabulary. We needed to fine-tune it on real-world medical data.
+**Technical Details:**
+- **Platform:** **Google Colab** (T4 GPU).
+- **Process:** We utilized the Kaggle 'Doctor's Handwritten Prescription BD dataset' containing 4,680 individual words of real Bangladeshi medical handwriting. We fine-tuned TrOCR for 5 epochs using the HuggingFace `Seq2SeqTrainer`.
+- **Outcome:** The model learned the dataset perfectly, bringing eval loss down to `0.002`.
+
+**Key Discoveries & The YOLO Bottleneck:**
+When tested on the pipeline, we discovered a classic AI domain hallucination behavior:
+1. Because we heavily fine-tuned TrOCR exclusively on medicine names, it lost its general-purpose English reading capabilities.
+2. Our YOLO model (trained only for 30 epochs on a small dataset) incorrectly cropped a "Symptom" and fed it to TrOCR as a "Medicine".
+3. TrOCR, acting like a language model forced into a specific domain, hallucinated a medicine name that visually matched the symptom's squiggles (e.g. predicting "Ramipril" for the word "giddiness").
+
+**Next Strategic Steps:**
+To expand the pipeline to all fields safely, we must solve the YOLO bottleneck. We will pivot to a hybrid approach: using a general-purpose OCR (like EasyOCR) to read the entire page safely, locating the "Rx" header, and *only* passing those highly-specific medicine lines into our Fine-Tuned TrOCR model to prevent hallucination.
