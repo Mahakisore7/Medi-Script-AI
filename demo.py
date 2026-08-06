@@ -36,7 +36,7 @@ def main():
     # Set to "yolo+easyocr" for YOLO segmentation + EasyOCR per crop
     # Set to "hybrid" for EasyOCR detection+recognition -> Parsing -> TrOCR on Rx lines
     # Set to "locateanything" for LocateAnything API + TrOCR recognition
-    SEGMENTATION_MODE = "locateanything"
+    SEGMENTATION_MODE = "yolo"
 
     print(
         f"\nRunning pipeline (Segmentation Mode: {SEGMENTATION_MODE.upper()} -> TrOCR Recognition -> Postprocessing)..."
