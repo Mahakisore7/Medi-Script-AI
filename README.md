@@ -1,53 +1,60 @@
-# SafeRx-OCR: Handwriting Recognition for Medical Prescriptions
+# Medi-Script-AI: Pure DL Handwriting Recognition Pipeline
 
-This repository contains the codebase for the SafeRx-OCR thesis project, building an end-to-end pipeline for handwritten medical prescription recognition.
+Medi-Script-AI is an end-to-end deep learning pipeline for automatically segmenting and recognizing messy handwritten medical prescriptions.
 
-## The Core Architecture
+Because medical prescriptions rely heavily on domain-specific vocabulary (complex drug names and dosages) and feature highly cursive, connected, and degraded handwriting, traditional OCR engines (like Tesseract or EasyOCR) struggle immensely. To solve this, this repository implements a custom hybrid architecture combining object detection (YOLOv8) and transformer-based handwriting recognition (TrOCR).
 
-This pipeline chains three distinct AI modules together. A raw image goes in one end, and structured JSON data comes out the other:
+## Architecture Overview
 
-1. **YOLOv8 (Segmentation Module):** Acts as the "eyes". Instead of reading the whole page at once, YOLO scans the document and draws precise bounding boxes around specific fields (e.g., Patient Name, Medicine, Age).
-2. **TrOCR (Recognition Module):** Acts as the "reader". It takes the small cropped image of handwriting and uses a VisionEncoderDecoder Transformer to translate the pixels into raw text characters.
-3. **Lexicon & RapidFuzz (Post-processing Module):** Acts as the "spellchecker". Because handwriting AI often makes slight spelling mistakes, this module uses fuzzy-string matching to compare TrOCR's raw output against a known dictionary of FDA medical terms to autocorrect it.
+The pipeline consists of four main phases:
 
----
+1. **YOLOv8 Segmentation:**
+   We trained a custom YOLOv8 model on the **Bannari-Amman Kaggle Dataset**. We specifically annotated and extracted only the `medicine` bounding boxes to create a specialized Roboflow dataset. This allows the pipeline to ignore noise (logos, clinic names, doctor signatures) and strictly isolate individual medicine lines.
 
-## 🚀 Quick Start Guide (Reproduce the Project)
+2. **Crop Enhancement:**
+   Raw YOLO crops are often low-contrast, inconsistently lit, or too thin. The `crop_enhancer.py` applies adaptive thresholding (CLAHE), grayscale conversion, and morphological dilation to thicken the pen strokes and maximize contrast before OCR.
 
-Follow these steps to generate the data, train the model, and run the pipeline from scratch.
+3. **TrOCR-Large (Transformer-based OCR):**
+   Instead of traditional CNN-RNN architectures, we use Microsoft's **TrOCR-Large** (558 million parameters). By processing the enhanced crop through a Vision Transformer (ViT) encoder and a RoBERTa language decoder, TrOCR leverages its pre-training on massive handwriting datasets (IAM, SROIE) to decode the cursive strokes visually.
 
-### Step 1: Environment Setup
-We use `uv` for reproducible, fast Python environment management.
-1. Install uv:
-   ```powershell
-   irm https://astral.sh/uv/install.ps1 | iex
-   ```
-2. Install dependencies:
-   ```bash
-   uv sync
-   ```
+4. **Robust Lexicon Matching:**
+   Because handwriting is inherently ambiguous (e.g., `Ecosprin` vs `Ecoseptic`), we process the raw output through a domain-specific drug lexicon (containing 250,000+ Indian medicines). The `postprocess.py` module uses Levenshtein distance combined with a prefix-weighted bonus to snap phonetic misspellings back to the correct medical terms.
 
-### Step 2: Generate the Synthetic Dataset
-Instead of manually annotating hundreds of prescriptions, we wrote a procedural Python script to generate synthetic medical prescriptions with automatic YOLO bounding boxes.
+## Repository Structure
+
+- `demo.py`: The main command-line interface for running inference on new prescription images.
+- `ml/src/rx_recognition/`: The core pipeline source code.
+  - `pipeline.py`: Orchestrates segmentation, enhancement, OCR, and post-processing.
+  - `recognition.py`: Handles loading and running the TrOCR HuggingFace models.
+  - `segmentation.py`: Handles YOLO bounding box extraction.
+  - `crop_enhancer.py`: OpenCV image processing for crop contrast/dilation.
+  - `postprocess.py`: Handles the robust fuzzy string matching algorithm against the medical lexicon.
+  - `generate_trocr_data.py`: Script to generate synthetic cursive training data.
+
+## Getting Started
+
+### 1. Installation
+Ensure you have `uv` installed, then synchronize the environment:
 ```bash
-python dataset_generation/generate_prescription_dataset.py
+uv sync
 ```
-This will generate a `prescription_dataset` folder locally. Zip this folder into `synthetic_prescriptions.zip` (Ensure you use a tool that zips with Linux forward-slashes for Kaggle compatibility!).
 
-### Step 3: Train the YOLO Model (Kaggle)
-1. Go to Kaggle and create a new Notebook.
-2. Click **Add Input -> New Dataset** and upload your `synthetic_prescriptions.zip` file.
-3. Upload the `kaggle_training.ipynb` file from this repository into Kaggle and run the cells to train YOLOv8 on your dataset for 50 epochs.
-4. Download the resulting `best.pt` weights file, rename it to `kaggle_best.pt`, and place it inside your local `runs/detect/` folder.
+### 2. Download the Models
+- **YOLOv8 Weights:** Place your fine-tuned `yolo_real_world_best.pt` inside `runs/detect/`.
+- **TrOCR Base:** The pipeline automatically downloads `microsoft/trocr-large-handwritten` from Hugging Face on first run.
 
-### Step 4: Run the Inference Pipeline
-We have included a synthetic sample image in the repo for you to test out of the box. Run the demo script:
+### 3. Run Inference
+You can test the pipeline on a raw prescription image by running:
 ```bash
-uv run --project ml python demo.py
+uv run demo.py "path/to/prescription.jpg" --mode yolo
 ```
-This will run the full AI pipeline and output the `Final Structured Record` as a JSON dictionary!
+The pipeline will output a structured dictionary containing the exact medicine names and dosages detected, and it will save a debug image (`runs/debug/segmentation_debug.jpg`) showing the extracted YOLO bounding boxes.
 
----
+## Advanced: Fine-Tuning TrOCR on Custom Data
 
-## Technical Architecture & Results
-For a complete, highly-detailed breakdown of the exact Deep Learning models used, and the final metrics achieved (0.994 mAP50), please read the **[`PROJECT_SUMMARY.md`](./PROJECT_SUMMARY.md)** file!
+If you wish to fine-tune TrOCR on local pharmacy data, you can generate a synthetic dataset and run the training scripts:
+
+1. **Generate Synthetic Data:**
+   Use the `generate_trocr_data.py` script to generate thousands of synthetic images using different cursive fonts and random Indian medicine combinations.
+2. **Train on Colab/Kaggle:**
+   Due to the massive size of TrOCR-Large, you must run `train_trocr.py` on a GPU instance (T4 or higher). Ensure you use `per_device_train_batch_size=2` and `gradient_checkpointing=True` to avoid Out-Of-Memory errors on free tiers.
