@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['Prescription']
+
+roboflow:
+  workspace: bannari-amman-institute-of-technology-ifaw9
+  project: handwritten-recognition
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/bannari-amman-institute-of-technology-ifaw9/handwritten-recognition/dataset/1

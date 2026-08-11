@@ -16,17 +16,18 @@ except ImportError:
 
 
 class TrOCRRecognizer:
-    def __init__(self, model_path="microsoft/trocr-base-handwritten"):
+    def __init__(self, model_path="models/final_trocr_large_model"):
+        """
+        Loads the locally fine-tuned TrOCR-Large model and processor.
+        Ensure you have extracted the downloaded Colab model to Medicine_Only_Workspace/models/final_trocr_large_model
+        """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        logging.info(f"Loading TrOCR model from {model_path} onto {self.device}...")
-
         try:
-            # We use manual instantiation as done in train_trocr to avoid FastTokenizer bugs
+            from transformers import TrOCRProcessor, VisionEncoderDecoderModel, ViTImageProcessor, RobertaTokenizer
+            # Load components manually to avoid FastTokenizer bugs in HuggingFace
             self.processor = TrOCRProcessor(
                 image_processor=ViTImageProcessor.from_pretrained(model_path),
-                # The tokenizer files are not saved by the trainer by default, and we didn't change the vocab, 
-                # so we can always safely load it from the base model!
-                tokenizer=RobertaTokenizer.from_pretrained("microsoft/trocr-base-handwritten"),
+                tokenizer=RobertaTokenizer.from_pretrained(model_path),
             )
             self.model = VisionEncoderDecoderModel.from_pretrained(model_path).to(self.device)
 
@@ -38,11 +39,22 @@ class TrOCRRecognizer:
 
             self.model.eval()
             logging.info("TrOCR loaded successfully.")
+
+            # Cache for prefix allowed tokens
+            self._token_str_list = []
+            for i in range(self.processor.tokenizer.vocab_size):
+                s = self.processor.tokenizer.decode([i], skip_special_tokens=True).lower()
+                if s:
+                    self._token_str_list.append((i, s))
+
+            from rx_recognition.lexicon_trie import MedicalLexicons
+            self.lexicons = MedicalLexicons()
+
         except Exception as e:
             logging.error(f"Failed to load TrOCR: {e}")
             self.model = None
 
-    def recognize_text(self, image: np.ndarray) -> tuple[str, float]:
+    def recognize_text(self, image: np.ndarray, field_type: str = None) -> tuple[str, float]:
         if self.model is None:
             return "dummy_text", 50.0
 
@@ -53,52 +65,55 @@ class TrOCRRecognizer:
             else:
                 pil_image = image.convert("RGB")
 
-            # TrOCR's ViTImageProcessor blindly resizes images to 384x384.
-            # The model was trained on text lines that were resized to 384x384, so
-            # we should NOT pad it to a square! Padding to a square shrinks the text.
-
             pixel_values = self.processor(pil_image, return_tensors="pt").pixel_values.to(
                 self.device
             )
 
+            # NOTE: prefix_allowed_tokens_fn is disabled on CPU — it iterates the
+            # entire vocab every token and makes inference 100x slower.
+            # The fine-tuned model + fuzzy lexicon handles correction instead.
             with torch.no_grad():
                 outputs = self.model.generate(
                     pixel_values,
                     return_dict_in_generate=True,
                     output_scores=True,
-                    max_length=64,
+                    max_new_tokens=24,
                     early_stopping=True,
                     no_repeat_ngram_size=3,
-                    length_penalty=2.0,
-                    num_beams=4,
+                    length_penalty=1.0,
+                    num_beams=2,
+                    num_return_sequences=2 if field_type == "medicine" else 1,
                 )
 
-            generated_ids = outputs.sequences
+            beam_results = []
+            for i in range(outputs.sequences.shape[0]):
+                seq = outputs.sequences[i]
+                seq_text = self.processor.tokenizer.decode(seq, skip_special_tokens=True).strip()
 
-            # Compute confidence score from transition scores (requires transformers support)
-            try:
-                transition_scores = self.model.compute_transition_scores(
-                    outputs.sequences, outputs.scores, normalize_logits=True
-                )
-                # Average the token probabilities to get a pseudo-confidence score (0-100)
-                # Ensure we handle empty sequences
-                if transition_scores.numel() > 0:
-                    token_probs = torch.exp(transition_scores[0])
-                    # Filter out NaN/Inf just in case
-                    token_probs = token_probs[torch.isfinite(token_probs)]
-                    if token_probs.numel() > 0:
-                        avg_prob = token_probs.mean().item()
-                        conf = float(avg_prob) * 100.0
+                # Compute conf for this sequence
+                try:
+                    if outputs.scores:
+                        transition_scores = self.model.compute_transition_scores(
+                            outputs.sequences, outputs.scores, normalize_logits=True
+                        )
+                        if transition_scores.numel() > i:
+                            token_probs = torch.exp(transition_scores[i])
+                            token_probs = token_probs[torch.isfinite(token_probs)]
+                            conf = float(token_probs.mean().item()) * 100.0 if token_probs.numel() > 0 else 50.0
+                        else:
+                            conf = 50.0
                     else:
                         conf = 50.0
-                else:
+                except Exception as e:
                     conf = 50.0
-            except Exception as e:
-                logging.warning(f"Failed to compute transition scores: {e}")
-                conf = 50.0
 
-            generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-            return generated_text.strip(), conf
+                beam_results.append((seq_text, conf))
+
+            from rx_recognition.domain_lm import get_domain_lm
+            lm = get_domain_lm()
+            best_text, best_conf = lm.rescore_beams(beam_results, field_type=field_type)
+
+            return best_text.strip(), best_conf
         except Exception as e:
             logging.error(f"TrOCR recognition error: {e}")
             return "", 0.0
@@ -109,7 +124,7 @@ _recognizer_finetuned = None
 _recognizer_base = None
 
 
-def recognize_text(image: np.ndarray, use_base_model: bool = False) -> tuple[str, float]:
+def recognize_text(image: np.ndarray, use_base_model: bool = False, field_type: str = None) -> tuple[str, float]:
     """
     Main entry point for pipeline.py.
     """
@@ -118,22 +133,22 @@ def recognize_text(image: np.ndarray, use_base_model: bool = False) -> tuple[str
 
     if use_base_model:
         if _recognizer_base is None:
-            logging.info("Loading base TrOCR model (microsoft/trocr-base-handwritten)...")
-            _recognizer_base = TrOCRRecognizer("microsoft/trocr-base-handwritten")
-        return _recognizer_base.recognize_text(image)
+            logging.info("Loading base TrOCR model (microsoft/trocr-large-handwritten)...")
+            _recognizer_base = TrOCRRecognizer("microsoft/trocr-large-handwritten")
+        return _recognizer_base.recognize_text(image, field_type=field_type)
 
     if _recognizer_finetuned is None:
         # Check if the fine-tuned model from Kaggle/Colab has been downloaded
-        finetuned_path = "runs/trocr/trocr-medical-best"
-        if os.path.exists(finetuned_path):
-            logging.info(
-                f"✨ Found fine-tuned TrOCR model at {finetuned_path}! Using it for pipeline."
-            )
-            _recognizer_finetuned = TrOCRRecognizer(finetuned_path)
-        else:
-            logging.warning(
-                f"Fine-tuned model not found at {finetuned_path}. Falling back to base model."
-            )
-            _recognizer_finetuned = TrOCRRecognizer("microsoft/trocr-base-handwritten")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        local_model_path = "models/final_trocr_large_model"
 
-    return _recognizer_finetuned.recognize_text(image)
+        if os.path.exists(local_model_path):
+            logging.info(f"Using locally fine-tuned TrOCR model from {local_model_path}")
+            _recognizer_finetuned = TrOCRRecognizer(local_model_path)
+        else:
+            logging.warning(f"Local model {local_model_path} not found! Falling back to microsoft/trocr-large-handwritten")
+            _recognizer_finetuned = TrOCRRecognizer("microsoft/trocr-large-handwritten")
+
+
+
+    return _recognizer_finetuned.recognize_text(image, field_type=field_type)

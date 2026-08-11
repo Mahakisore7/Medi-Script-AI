@@ -17,39 +17,73 @@ class TrainedFieldDetector:
 
     def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float, str]]:
         import os
-
         import cv2
 
-        # YOLO inference with lower confidence threshold
+        # YOLO inference
         results = self.model(image, verbose=False, conf=0.25)[0]
-        crops = []
 
-        # Create debug image copy
-        debug_img = image.copy()
+        # ── Collect raw detections ──────────────────────────────────────────
+        raw_boxes = []  # (field_name, x1, y1, x2, y2, conf)
+        h_img, w_img = image.shape[:2]
+        padding_pct = 0.05
 
         for box in results.boxes:
             field_name = self.model.names[int(box.cls)]
             x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-            conf = float(box.conf[0]) * 100.0  # Convert to 0-100 scale
+            conf = float(box.conf[0]) * 100.0
 
-            # Crop the image using the bounding box
+            bw, bh = x2 - x1, y2 - y1
+            x1 = max(0, x1 - int(bw * padding_pct))
+            y1 = max(0, y1 - int(bh * padding_pct))
+            x2 = min(w_img, x2 + int(bw * padding_pct))
+            y2 = min(h_img, y2 + int(bh * padding_pct))
+            raw_boxes.append((field_name, x1, y1, x2, y2, conf))
+
+        # ── IoU-based deduplication (custom NMS per class) ──────────────────
+        # YOLO sometimes returns multiple overlapping boxes for the same region.
+        # We suppress any box that overlaps >40% with a higher-confidence box.
+        IOU_THRESHOLD = 0.40
+
+        def _iou(a, b):
+            ax1, ay1, ax2, ay2 = a[1], a[2], a[3], a[4]
+            bx1, by1, bx2, by2 = b[1], b[2], b[3], b[4]
+            ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+            ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+            inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+            if inter == 0:
+                return 0.0
+            area_a = (ax2 - ax1) * (ay2 - ay1)
+            area_b = (bx2 - bx1) * (by2 - by1)
+            return inter / (area_a + area_b - inter)
+
+        # Sort by confidence descending so we always keep the best box first
+        raw_boxes.sort(key=lambda b: b[5], reverse=True)
+        kept = []
+        for candidate in raw_boxes:
+            suppressed = False
+            for keeper in kept:
+                # Only suppress within the same class
+                if candidate[0] == keeper[0] and _iou(candidate, keeper) > IOU_THRESHOLD:
+                    suppressed = True
+                    break
+            if not suppressed:
+                kept.append(candidate)
+
+        logging.info(f"YOLO: {len(raw_boxes)} raw boxes → {len(kept)} after IoU dedup (threshold={IOU_THRESHOLD})")
+
+        # ── Build crops from kept boxes ─────────────────────────────────────
+        crops = []
+        debug_img = image.copy()
+
+        for field_name, x1, y1, x2, y2, conf in kept:
             crop = image[y1:y2, x1:x2]
             crops.append((field_name, crop, conf, ""))
 
-            # Draw bounding box and label for debugging
             cv2.rectangle(debug_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
             label = f"{field_name} {conf:.1f}%"
-            cv2.putText(
-                debug_img,
-                label,
-                (x1, max(y1 - 10, 0)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 0, 255),
-                2,
-            )
+            cv2.putText(debug_img, label, (x1, max(y1 - 10, 0)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-        # Save the debug image
         script_dir = os.path.dirname(os.path.abspath(__file__))
         debug_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "..", "runs", "debug"))
         os.makedirs(debug_dir, exist_ok=True)
@@ -127,6 +161,93 @@ class TextLineDetector:
         debug_path = os.path.join(debug_dir, "segmentation_debug.jpg")
         cv2.imwrite(debug_path, debug_img)
         logging.info(f"Saved CRAFT text detection debug image to: {debug_path}")
+
+        return crops
+
+
+class PaddleOCRTextLineDetector:
+    """
+    Uses PaddleOCR to find tight bounding boxes and recognizes text zero-shot.
+    """
+
+    def __init__(self):
+        import logging
+        import os
+        from paddleocr import PaddleOCR
+
+        logging.info("Loading PaddleOCR (PP-OCRv4) for robust text detection...")
+        # On Windows, MKLDNN can cause a fused_conv2d crash on CPU, so we disable it globally for Paddle
+        os.environ["FLAGS_use_mkldnn"] = "0"
+        
+        # Use English by default, use_gpu=False for CPU
+        self.ocr = PaddleOCR(
+            use_angle_cls=True, 
+            lang="en", 
+            use_gpu=False, 
+            show_log=False,
+            det_db_thresh=0.1,         # Lower binarization threshold to catch faint ink
+            det_db_box_thresh=0.3,     # Lower box threshold to keep low-confidence text boxes
+            det_db_unclip_ratio=2.0,   # Increase dilation to encompass full words
+            det_limit_side_len=2048,   # Prevent downscaling high-res images which destroys small handwriting
+        )
+
+    def detect_fields(self, image: np.ndarray) -> list[tuple[str, np.ndarray, float, str]]:
+        import os
+        import cv2
+
+        # PaddleOCR returns: [[[[[x, y], [x, y], [x, y], [x, y]], (text, conf)], ...]]
+        results = self.ocr.ocr(image, cls=True)
+
+        crops = []
+        debug_img = image.copy()
+
+        if not results or not results[0]:
+            return crops
+
+        for i, line in enumerate(results[0]):
+            bbox = line[0]
+            text, conf = line[1]
+
+            # bbox is [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+            xs = [p[0] for p in bbox]
+            ys = [p[1] for p in bbox]
+            x1, x2 = int(min(xs)), int(max(xs))
+            y1, y2 = int(min(ys)), int(max(ys))
+
+            # Add a small padding to the box so TrOCR has some breathing room
+            pad = 5
+            h, w = image.shape[:2]
+            x1 = max(0, x1 - pad)
+            y1 = max(0, y1 - pad)
+            x2 = min(w, x2 + pad)
+            y2 = min(h, y2 + pad)
+
+            crop = image[y1:y2, x1:x2]
+
+            if crop.size > 0:
+                # We name the fields 'line_0', 'line_1', etc.
+                field_name = f"line_{i}"
+                crops.append((field_name, crop, conf * 100.0, text))
+
+                # Draw on debug image
+                cv2.rectangle(debug_img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                cv2.putText(
+                    debug_img,
+                    f"L{i}",
+                    (x1, max(y1 - 5, 0)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (0, 0, 255),
+                    1,
+                )
+
+        # Save the debug image
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        debug_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "..", "runs", "debug"))
+        os.makedirs(debug_dir, exist_ok=True)
+        debug_path = os.path.join(debug_dir, "segmentation_debug.jpg")
+        cv2.imwrite(debug_path, debug_img)
+        logging.info(f"Saved PaddleOCR text detection debug image to: {debug_path}")
 
         return crops
 
@@ -275,10 +396,19 @@ def segment_fields(
     """
     Extracts bounding boxes from the image.
     If mode is 'text' or 'hybrid', uses EasyOCR (CRAFT) to detect individual text lines.
+    If mode is 'paddleocr' or 'paddle_hybrid', uses PaddleOCR to detect individual text lines.
     If mode is 'yolo', uses the trained YOLO model to find semantic fields.
     If mode is 'locateanything', uses the local LocateAnything API server.
     """
-    if mode in ("text", "easyocr", "hybrid"):
+    if mode in ("paddleocr", "paddle_hybrid"):
+        detector = PaddleOCRTextLineDetector()
+        crops = detector.detect_fields(image)
+        if len(crops) > 0:
+            return crops
+        else:
+            logging.warning("PaddleOCR detection failed! Falling back to dummy segmentation.")
+
+    elif mode in ("text", "easyocr", "hybrid"):
         detector = TextLineDetector()
         crops = detector.detect_fields(image)
         if len(crops) > 0:

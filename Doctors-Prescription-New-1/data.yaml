@@ -1,0 +1,10 @@
+train: ../train/images
+val: ../valid/images
+nc: 6
+names:
+  0: name
+  1: age
+  2: gender
+  3: symptoms
+  4: medicine
+  5: dosage

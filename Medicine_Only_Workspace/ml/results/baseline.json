@@ -1,0 +1,6 @@
+{
+    "cer": 5.723897657897657,
+    "wer": 5.81,
+    "exact_match_accuracy": 0.14,
+    "n_samples": 50
+}

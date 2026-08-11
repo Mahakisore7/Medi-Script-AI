@@ -1,4 +1,5 @@
 import os
+import cv2
 
 import numpy as np
 
@@ -7,8 +8,10 @@ from rx_recognition.recognition import recognize_text
 from rx_recognition.record import build_record
 from rx_recognition.segmentation import segment_fields
 
-# Minimum EasyOCR confidence to keep a detection (Step 4: Confidence Filtering)
-MIN_OCR_CONFIDENCE = 0.0
+# Minimum final confidence to keep a TrOCR detection in YOLO mode
+MIN_OCR_CONFIDENCE = 15.0
+# Minimum lexicon match score to accept a medicine crop (filters hallucinations)
+MIN_LEXICON_SCORE = 50.0
 
 
 def _run_easyocr_on_crop(reader, crop):
@@ -44,7 +47,7 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
     # Check if we have trained YOLO weights
     script_dir = os.path.dirname(os.path.abspath(__file__))
     yolo_weights = os.path.abspath(
-        os.path.join(script_dir, "..", "..", "..", "runs", "detect", "kaggle_best.pt")
+        os.path.join(script_dir, "..", "..", "..", "runs", "detect", "yolo_real_world_best.pt")
     )
     use_yolo = os.path.exists(yolo_weights)
 
@@ -70,14 +73,50 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
 
             results = {}
             confidences = {}
+            from rx_recognition.crop_enhancer import enhance_crop_for_ocr
+
+            # Directory to save crop debug images
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            crops_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "..", "runs", "debug", "crops"))
+            os.makedirs(crops_dir, exist_ok=True)
+            # Clear old crops from previous runs
+            for f in os.listdir(crops_dir):
+                if f.endswith(".jpg"):
+                    os.remove(os.path.join(crops_dir, f))
+
+            crop_index = 0
             for field_name, crop, seg_conf, _ in fields:
-                ocr_text, ocr_conf = _run_easyocr_on_crop(reader, crop)
+                # Fix 1: Enhance the crop before OCR (upscale + contrast + binarize)
+                enhanced = enhance_crop_for_ocr(crop, scale=3.0)
+                ocr_text, ocr_conf = _run_easyocr_on_crop(reader, enhanced)
+
+                # Save original and enhanced crop images for visual inspection
+                safe_text = "".join(c if c.isalnum() or c in " _-" else "_" for c in ocr_text)[:40].strip()
+                cv2.imwrite(os.path.join(crops_dir, f"crop_{crop_index:02d}_original_{safe_text}.jpg"), crop)
+                cv2.imwrite(os.path.join(crops_dir, f"crop_{crop_index:02d}_enhanced_{safe_text}.jpg"), enhanced)
+                crop_index += 1
+
+                # Skip crops where EasyOCR found nothing at all
+                if not ocr_text.strip():
+                    continue
+
                 # Use lexicon validation for medicine/symptom fields
                 clean_text, val_conf = validate_field(field_name, ocr_text)
                 final_conf = combined_confidence(seg_conf, ocr_conf, val_conf)
 
-                results[field_name] = clean_text
-                confidences[field_name] = round(final_conf, 2)
+                # Build a unique key so multiple crops of the same class don't overwrite each other
+                # e.g. Prescription, Prescription_1, Prescription_2
+                unique_name = field_name
+                counter = 1
+                while unique_name in results:
+                    unique_name = f"{field_name}_{counter}"
+                    counter += 1
+
+                results[unique_name] = clean_text
+                confidences[unique_name] = round(final_conf, 2)
+
+            print(f"\n[DEBUG] Crop images saved to: {crops_dir}")
+
 
             print("\n[DEBUG] YOLO+EasyOCR Field Results:")
             import pprint
@@ -104,22 +143,55 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
     confidences = {}
     crops_dict = {}  # Keep track of crops for hybrid mode
     for i, (field_name, crop, seg_conf, ocr_text) in enumerate(fields):
-        if mode in ("easyocr", "hybrid"):
+        if mode in ("easyocr", "hybrid", "paddleocr", "paddle_hybrid"):
             raw_text = ocr_text
             rec_conf = seg_conf
             # Step 4: Confidence filtering — skip low-confidence detections
             if rec_conf < MIN_OCR_CONFIDENCE:
                 continue
         else:
-            raw_text, rec_conf = recognize_text(crop, use_base_model=False)
+            base_field_type = field_name.split('_')[0] if '_' in field_name else field_name
 
-        if mode in ("text", "easyocr", "hybrid"):
+            # ── TrOCR-Large Base + Crop Enhancer: The optimal local pure DL setup ──
+            try:
+                from rx_recognition.crop_enhancer import enhance_crop_for_ocr
+                # TrOCR works best with base model on enhanced high-contrast crops
+                enhanced_crop = enhance_crop_for_ocr(crop, scale=2.0)
+            except Exception as e:
+                import logging
+                logging.warning(f"Crop enhancement failed: {e}")
+                enhanced_crop = crop
+                
+            raw_text, rec_conf = recognize_text(enhanced_crop, use_base_model=True, field_type=base_field_type)
+            gemini_succeeded = False  # Always use lexicon correction with TrOCR
+
+
+        if mode in ("text", "easyocr", "hybrid", "paddleocr", "paddle_hybrid"):
             clean_text = raw_text
             val_conf = 100.0
+        elif gemini_succeeded:
+            # Gemini already reads accurately — skip fuzzy lexicon correction
+            # which was changing correct readings like 'Bisoprolol 2.5mg' → 'Bilacad 2.5mg oral solution'
+            clean_text = raw_text
+            val_conf = rec_conf  # Trust Gemini's confidence directly
         else:
+            # TrOCR fallback — still apply lexicon correction to fix OCR errors
             clean_text, val_conf = validate_field(field_name, raw_text)
 
         final_conf = combined_confidence(seg_conf, rec_conf, val_conf)
+
+        # ── GATE 1: Skip crops with very low final confidence (hallucinations/noise) ──
+        if final_conf < MIN_OCR_CONFIDENCE:
+            import logging
+            logging.info(f"[FILTER] Dropping '{clean_text}' — final_conf {final_conf:.1f} < {MIN_OCR_CONFIDENCE}")
+            continue
+
+        # ── GATE 2: For prescription crops, reject text with no plausible medicine match ──
+        if field_name.lower().startswith("prescription") and val_conf < MIN_LEXICON_SCORE:
+            import logging
+            logging.info(f"[FILTER] Dropping '{clean_text}' — lexicon score {val_conf:.1f} < {MIN_LEXICON_SCORE} (likely hallucination)")
+            continue
+
         unique_name = f"{field_name}_{i}" if field_name in results else field_name
 
         results[unique_name] = clean_text
@@ -132,7 +204,7 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
     pprint.pprint(results)
 
     # 4. Parse if mode uses line-by-line reading
-    if mode in ("text", "easyocr", "hybrid"):
+    if mode in ("text", "easyocr", "hybrid", "paddleocr", "paddle_hybrid"):
         import re
 
         from rx_recognition.medical_lexicon import (
@@ -208,12 +280,13 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
                     symptoms.append(corrected)
             elif current_section in ("Rx", "Adv"):
                 if line:
-                    if mode == "hybrid":
+                    if mode in ("hybrid", "paddle_hybrid"):
                         # RUN TROCR ON THIS SPECIFIC CROP!
                         crop_img = crops_dict[line_key]
                         print("[DEBUG] Hybrid Mode: Found Rx line. Running TrOCR on crop...")
-                        trocr_text, _ = recognize_text(crop_img, use_base_model=False)
-                        print(f"        EasyOCR read: '{line}' -> TrOCR read: '{trocr_text}'")
+                        trocr_text, _ = recognize_text(crop_img, use_base_model=False, field_type="medicine")
+                        engine_name = "EasyOCR" if mode == "hybrid" else "PaddleOCR"
+                        print(f"        {engine_name} read: '{line}' -> TrOCR read: '{trocr_text}'")
                         line = trocr_text
 
                     corrected = correct_medicine_name(line)

@@ -7,10 +7,9 @@ def download_dataset():
     This script is designed to run either locally or on Kaggle.
     """
     # Initialize the Roboflow object.
-    # Initialize the Roboflow object.
     # IMPORTANT: Go to https://universe.roboflow.com/
     # Go to your account settings to get your API Key.
-    rf = Roboflow(api_key="PASTE_YOUR_API_KEY_HERE")
+    rf = Roboflow(api_key="cWkvsYfYQ9WRMi1IOCbh")
 
     # Using the dataset found at: https://universe.roboflow.com/sachin-space/doctors-prescription-new/dataset/1
     project = rf.workspace("sachin-space").project("doctors-prescription-new")

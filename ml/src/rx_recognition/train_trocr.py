@@ -1,7 +1,9 @@
 import os
 
 import evaluate
+from torch.utils.data import ConcatDataset
 from transformers import (
+    EarlyStoppingCallback,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
     TrOCRProcessor,
@@ -74,8 +76,17 @@ def train():
         print(f"Dataset not found at {train_csv}. Run generate_trocr_data.py first.")
         return
 
-    train_ds = FieldCropDataset(train_csv, processor)
-    val_ds = FieldCropDataset(val_csv, processor)
+    train_ds = FieldCropDataset(train_csv, processor, is_train=True)
+    val_ds = FieldCropDataset(val_csv, processor, is_train=False)
+
+    synthetic_csv = os.path.abspath(
+        os.path.join(script_dir, "..", "..", "..", "synthetic_trocr_data", "synthetic_manifest.csv")
+    )
+    if os.path.exists(synthetic_csv):
+        print(f"Loading synthetic dataset from {synthetic_csv}")
+        synth_ds = FieldCropDataset(synthetic_csv, processor, is_train=True)
+        train_ds = ConcatDataset([train_ds, synth_ds])
+        print(f"Combined dataset size: {len(train_ds)}")
 
     # Training arguments
     args = Seq2SeqTrainingArguments(
@@ -91,6 +102,9 @@ def train():
         predict_with_generate=True,
         report_to="none",
         logging_steps=50,
+        metric_for_best_model="cer",
+        greater_is_better=False,
+        load_best_model_at_end=True,
     )
 
     trainer = Seq2SeqTrainer(
@@ -99,6 +113,8 @@ def train():
         train_dataset=train_ds,
         eval_dataset=val_ds,
         processing_class=processor.image_processor,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
+        compute_metrics=compute_metrics,
     )
 
     trainer.train()
