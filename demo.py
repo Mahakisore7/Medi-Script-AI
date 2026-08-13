@@ -1,8 +1,10 @@
 import os
 import logging
 import sys
+import argparse
 import cv2
 from pprint import pprint
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "ml", "src")))
 
 from rx_recognition.pipeline import run_image_pipeline
@@ -11,12 +13,29 @@ from rx_recognition.pipeline import run_image_pipeline
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
 
-import argparse
-
 def main():
     parser = argparse.ArgumentParser(description="Run Medi-Script-AI pipeline")
-    parser.add_argument("image", nargs="?", default=os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "my sample", "original_prescription_1.jpg")), help="Path to the image")
-    parser.add_argument("--mode", type=str, default="paddleocr", choices=["paddleocr", "yolo", "hybrid", "paddle_hybrid", "text"], help="Segmentation mode")
+    parser.add_argument(
+        "image",
+        nargs="?",
+        default=os.path.abspath(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "my sample",
+                "original_prescription_1.jpg",
+            )
+        ),
+        help="Path to the image",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="paddleocr",
+        choices=["paddleocr", "yolo", "hybrid", "paddle_hybrid", "text"],
+        help="Segmentation mode",
+    )
     args = parser.parse_args()
 
     image_path = args.image
@@ -43,7 +62,11 @@ def main():
     pprint(record.get("_raw_fields", {}))
 
     # Display the debug annotated image
-    debug_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "runs", "debug", "segmentation_debug.jpg"))
+    debug_path = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__), "runs", "debug", "segmentation_debug.jpg"
+        )
+    )
     if os.path.exists(debug_path):
         print(f"\nOpening debug image: {debug_path}")
         debug_img = cv2.imread(debug_path)
