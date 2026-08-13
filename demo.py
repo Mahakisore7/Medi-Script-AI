@@ -76,9 +76,14 @@ def main():
             scale = 800 / h
             debug_img = cv2.resize(debug_img, (int(w * scale), int(h * scale)))
 
-        cv2.imshow("Annotated Image - Press any key to close", debug_img)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        try:
+            cv2.imshow("Annotated Image - Press any key to close", debug_img)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        except cv2.error:
+            print(
+                "Note: Could not open the GUI window to display the image. You can manually view it at the path above."
+            )
 
 
 if __name__ == "__main__":

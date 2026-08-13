@@ -1,6 +1,6 @@
 import os
-import cv2
 
+import cv2
 import numpy as np
 
 from rx_recognition.postprocess import combined_confidence, validate_field
@@ -77,7 +77,9 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
 
             # Directory to save crop debug images
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            crops_dir = os.path.abspath(os.path.join(script_dir, "..", "..", "..", "runs", "debug", "crops"))
+            crops_dir = os.path.abspath(
+                os.path.join(script_dir, "..", "..", "..", "runs", "debug", "crops")
+            )
             os.makedirs(crops_dir, exist_ok=True)
             # Clear old crops from previous runs
             for f in os.listdir(crops_dir):
@@ -91,9 +93,16 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
                 ocr_text, ocr_conf = _run_easyocr_on_crop(reader, enhanced)
 
                 # Save original and enhanced crop images for visual inspection
-                safe_text = "".join(c if c.isalnum() or c in " _-" else "_" for c in ocr_text)[:40].strip()
-                cv2.imwrite(os.path.join(crops_dir, f"crop_{crop_index:02d}_original_{safe_text}.jpg"), crop)
-                cv2.imwrite(os.path.join(crops_dir, f"crop_{crop_index:02d}_enhanced_{safe_text}.jpg"), enhanced)
+                safe_text = "".join(c if c.isalnum() or c in " _-" else "_" for c in ocr_text)[
+                    :40
+                ].strip()
+                cv2.imwrite(
+                    os.path.join(crops_dir, f"crop_{crop_index:02d}_original_{safe_text}.jpg"), crop
+                )
+                cv2.imwrite(
+                    os.path.join(crops_dir, f"crop_{crop_index:02d}_enhanced_{safe_text}.jpg"),
+                    enhanced,
+                )
                 crop_index += 1
 
                 # Skip crops where EasyOCR found nothing at all
@@ -116,7 +125,6 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
                 confidences[unique_name] = round(final_conf, 2)
 
             print(f"\n[DEBUG] Crop images saved to: {crops_dir}")
-
 
             print("\n[DEBUG] YOLO+EasyOCR Field Results:")
             import pprint
@@ -150,21 +158,24 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
             if rec_conf < MIN_OCR_CONFIDENCE:
                 continue
         else:
-            base_field_type = field_name.split('_')[0] if '_' in field_name else field_name
+            base_field_type = field_name.split("_")[0] if "_" in field_name else field_name
 
             # ── TrOCR-Large Base + Crop Enhancer: The optimal local pure DL setup ──
             try:
                 from rx_recognition.crop_enhancer import enhance_crop_for_ocr
+
                 # TrOCR works best with base model on enhanced high-contrast crops
                 enhanced_crop = enhance_crop_for_ocr(crop, scale=2.0)
             except Exception as e:
                 import logging
+
                 logging.warning(f"Crop enhancement failed: {e}")
                 enhanced_crop = crop
-                
-            raw_text, rec_conf = recognize_text(enhanced_crop, use_base_model=True, field_type=base_field_type)
-            gemini_succeeded = False  # Always use lexicon correction with TrOCR
 
+            raw_text, rec_conf = recognize_text(
+                enhanced_crop, use_base_model=False, field_type=base_field_type
+            )
+            gemini_succeeded = False  # Always use lexicon correction with TrOCR
 
         if mode in ("text", "easyocr", "hybrid", "paddleocr", "paddle_hybrid"):
             clean_text = raw_text
@@ -183,13 +194,19 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
         # ── GATE 1: Skip crops with very low final confidence (hallucinations/noise) ──
         if final_conf < MIN_OCR_CONFIDENCE:
             import logging
-            logging.info(f"[FILTER] Dropping '{clean_text}' — final_conf {final_conf:.1f} < {MIN_OCR_CONFIDENCE}")
+
+            logging.info(
+                f"[FILTER] Dropping '{clean_text}' — final_conf {final_conf:.1f} < {MIN_OCR_CONFIDENCE}"
+            )
             continue
 
         # ── GATE 2: For prescription crops, reject text with no plausible medicine match ──
         if field_name.lower().startswith("prescription") and val_conf < MIN_LEXICON_SCORE:
             import logging
-            logging.info(f"[FILTER] Dropping '{clean_text}' — lexicon score {val_conf:.1f} < {MIN_LEXICON_SCORE} (likely hallucination)")
+
+            logging.info(
+                f"[FILTER] Dropping '{clean_text}' — lexicon score {val_conf:.1f} < {MIN_LEXICON_SCORE} (likely hallucination)"
+            )
             continue
 
         unique_name = f"{field_name}_{i}" if field_name in results else field_name
@@ -284,7 +301,9 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
                         # RUN TROCR ON THIS SPECIFIC CROP!
                         crop_img = crops_dict[line_key]
                         print("[DEBUG] Hybrid Mode: Found Rx line. Running TrOCR on crop...")
-                        trocr_text, _ = recognize_text(crop_img, use_base_model=False, field_type="medicine")
+                        trocr_text, _ = recognize_text(
+                            crop_img, use_base_model=False, field_type="medicine"
+                        )
                         engine_name = "EasyOCR" if mode == "hybrid" else "PaddleOCR"
                         print(f"        {engine_name} read: '{line}' -> TrOCR read: '{trocr_text}'")
                         line = trocr_text
