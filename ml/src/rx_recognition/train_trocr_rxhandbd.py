@@ -60,7 +60,7 @@ class RxHandBDDataset(Dataset):
             str(row["Text"]).strip(), padding="max_length", max_length=32, truncation=True
         ).input_ids
 
-        labels = [l if l != self.processor.tokenizer.pad_token_id else -100 for l in labels]
+        labels = [lbl if lbl != self.processor.tokenizer.pad_token_id else -100 for lbl in labels]
 
         return {"pixel_values": pixel_values, "labels": labels}
 
@@ -98,6 +98,11 @@ def train():
     model.config.decoder_start_token_id = processor.tokenizer.cls_token_id
     model.config.pad_token_id = processor.tokenizer.pad_token_id
     model.config.vocab_size = model.config.decoder.vocab_size
+
+    # Freeze the vision encoder to prevent catastrophic forgetting
+    print("Freezing the vision encoder...")
+    for param in model.encoder.parameters():
+        param.requires_grad = False
 
     # Prepare datasets
     train_csv = os.path.join(args.data_dir, "Train_Label.csv")
