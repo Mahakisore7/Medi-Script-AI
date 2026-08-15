@@ -23,7 +23,13 @@ class TrOCRRecognizer:
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         try:
-            from transformers import TrOCRProcessor, VisionEncoderDecoderModel, ViTImageProcessor, RobertaTokenizer
+            from transformers import (
+                RobertaTokenizer,
+                TrOCRProcessor,
+                VisionEncoderDecoderModel,
+                ViTImageProcessor,
+            )
+
             # Load components manually to avoid FastTokenizer bugs in HuggingFace
             self.processor = TrOCRProcessor(
                 image_processor=ViTImageProcessor.from_pretrained(model_path),
@@ -38,6 +44,14 @@ class TrOCRRecognizer:
             self.model.config.eos_token_id = self.processor.tokenizer.sep_token_id
 
             self.model.eval()
+
+            # Clear max_length from generation_config to avoid conflict with max_new_tokens
+            if (
+                hasattr(self.model, "generation_config")
+                and self.model.generation_config is not None
+            ):
+                self.model.generation_config.max_length = None
+
             logging.info("TrOCR loaded successfully.")
 
             # Cache for prefix allowed tokens
@@ -48,6 +62,7 @@ class TrOCRRecognizer:
                     self._token_str_list.append((i, s))
 
             from rx_recognition.lexicon_trie import MedicalLexicons
+
             self.lexicons = MedicalLexicons()
 
         except Exception as e:
@@ -99,17 +114,22 @@ class TrOCRRecognizer:
                         if transition_scores.numel() > i:
                             token_probs = torch.exp(transition_scores[i])
                             token_probs = token_probs[torch.isfinite(token_probs)]
-                            conf = float(token_probs.mean().item()) * 100.0 if token_probs.numel() > 0 else 50.0
+                            conf = (
+                                float(token_probs.mean().item()) * 100.0
+                                if token_probs.numel() > 0
+                                else 50.0
+                            )
                         else:
                             conf = 50.0
                     else:
                         conf = 50.0
-                except Exception as e:
+                except Exception:
                     conf = 50.0
 
                 beam_results.append((seq_text, conf))
 
             from rx_recognition.domain_lm import get_domain_lm
+
             lm = get_domain_lm()
             best_text, best_conf = lm.rescore_beams(beam_results, field_type=field_type)
 
@@ -124,7 +144,9 @@ _recognizer_finetuned = None
 _recognizer_base = None
 
 
-def recognize_text(image: np.ndarray, use_base_model: bool = False, field_type: str = None) -> tuple[str, float]:
+def recognize_text(
+    image: np.ndarray, use_base_model: bool = False, field_type: str = None
+) -> tuple[str, float]:
     """
     Main entry point for pipeline.py.
     """
@@ -146,9 +168,9 @@ def recognize_text(image: np.ndarray, use_base_model: bool = False, field_type: 
             logging.info(f"Using locally fine-tuned TrOCR model from {local_model_path}")
             _recognizer_finetuned = TrOCRRecognizer(local_model_path)
         else:
-            logging.warning(f"Local model {local_model_path} not found! Falling back to microsoft/trocr-large-handwritten")
+            logging.warning(
+                f"Local model {local_model_path} not found! Falling back to microsoft/trocr-large-handwritten"
+            )
             _recognizer_finetuned = TrOCRRecognizer("microsoft/trocr-large-handwritten")
-
-
 
     return _recognizer_finetuned.recognize_text(image, field_type=field_type)

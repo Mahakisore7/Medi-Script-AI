@@ -1,49 +1,77 @@
 import csv
-import json
-import urllib.request
 import os
 
-def fetch_fda_drugs(limit=1000) -> list[str]:
+
+def process_kaggle_medicines(kaggle_csv_path: str) -> list[str]:
     """
-    Fetches drug names (brand and generic) from the openFDA API.
+    Reads the Kaggle A-Z Indian Medicine dataset and extracts the brand names.
     """
-    url = f"https://api.fda.gov/drug/label.json?search=_exists_:openfda.brand_name&limit={limit}"
-    
-    print(f"Fetching up to {limit} drug labels from openFDA...")
-    
-    try:
-        with urllib.request.urlopen(url) as response:
-            data = json.loads(response.read().decode())
-    except Exception as e:
-        print(f"Failed to fetch from openFDA: {e}")
+    if not os.path.exists(kaggle_csv_path):
+        print(f"File not found: {kaggle_csv_path}")
         return []
 
     drugs = set()
-    for result in data.get("results", []):
-        openfda = result.get("openfda", {})
-        
-        # Add brand names
-        for brand in openfda.get("brand_name", []):
-            drugs.add(brand.strip().title())
-            
-        # Add generic names
-        for generic in openfda.get("generic_name", []):
-            drugs.add(generic.strip().title())
-            
-    print(f"Successfully extracted {len(drugs)} unique drug names.")
+    try:
+        with open(kaggle_csv_path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                name = row.get("name", "").strip()
+                if name:
+                    # Extract just the first word (brand name) to improve fuzzy matching
+                    # e.g., "Augmentin 625 Duo Tablet" -> "Augmentin"
+                    brand = name.split()[0].title()
+                    drugs.add(brand)
+                    # Also add the full name just in case
+                    drugs.add(name.title())
+    except Exception as e:
+        print(f"Error parsing Kaggle dataset: {e}")
+
+    print(f"Extracted {len(drugs)} unique Indian drug names/brands.")
     return sorted(list(drugs))
+
 
 def get_common_symptoms() -> list[str]:
     """Returns a hardcoded list of common medical symptoms."""
-    return sorted([
-        "Fever", "Cough", "Headache", "Nausea", "Vomiting", "Fatigue", 
-        "Dizziness", "Shortness of breath", "Chest pain", "Abdominal pain", 
-        "Diarrhea", "Constipation", "Chills", "Sweating", "Muscle ache", 
-        "Joint pain", "Rash", "Itching", "Sore throat", "Runny nose", 
-        "Congestion", "Sneezing", "Wheezing", "Palpitations", "Weight loss", 
-        "Weight gain", "Insomnia", "Anxiety", "Depression", "Confusion", 
-        "Weakness", "Numbness", "Tingling", "Vision changes", "Hearing loss"
-    ])
+    return sorted(
+        [
+            "Fever",
+            "Cough",
+            "Headache",
+            "Nausea",
+            "Vomiting",
+            "Fatigue",
+            "Dizziness",
+            "Shortness of breath",
+            "Chest pain",
+            "Abdominal pain",
+            "Diarrhea",
+            "Constipation",
+            "Chills",
+            "Sweating",
+            "Muscle ache",
+            "Joint pain",
+            "Rash",
+            "Itching",
+            "Sore throat",
+            "Runny nose",
+            "Congestion",
+            "Sneezing",
+            "Wheezing",
+            "Palpitations",
+            "Weight loss",
+            "Weight gain",
+            "Insomnia",
+            "Anxiety",
+            "Depression",
+            "Confusion",
+            "Weakness",
+            "Numbness",
+            "Tingling",
+            "Vision changes",
+            "Hearing loss",
+        ]
+    )
+
 
 def save_to_csv(data: list[str], filepath: str):
     """Saves a list of strings to a single-column CSV file."""
@@ -54,11 +82,15 @@ def save_to_csv(data: list[str], filepath: str):
             writer.writerow([item])
     print(f"Saved {len(data)} entries to {filepath}")
 
+
 if __name__ == "__main__":
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    
-    drugs = fetch_fda_drugs(limit=1000)
-    save_to_csv(drugs, os.path.join(project_root, "data", "lexicon", "medicines.csv"))
-    
+
+    kaggle_csv = os.path.join(project_root, "data", "lexicon", "A_Z_medicines_dataset_of_India.csv")
+    drugs = process_kaggle_medicines(kaggle_csv)
+
+    if drugs:
+        save_to_csv(drugs, os.path.join(project_root, "data", "lexicon", "medicines.csv"))
+
     symptoms = get_common_symptoms()
     save_to_csv(symptoms, os.path.join(project_root, "data", "lexicon", "symptoms.csv"))
