@@ -35,12 +35,12 @@ yolo_model = YOLO(YOLO_MODEL_PATH)
 # SCRIPT
 # =========================================================================
 def ask_gemini_for_transcription(image_path: str) -> str:
-    """Sends the cropped image to Gemini to get the exact text."""
+    """Sends the cropped image to Gemini with auto-retries for 503 High Demand."""
     try:
         with open(image_path, "rb") as image_file:
             encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
             
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         data = {
             "contents": [{
@@ -51,14 +51,23 @@ def ask_gemini_for_transcription(image_path: str) -> str:
             }]
         }
         
-        response = requests.post(url, headers=headers, json=data)
-        response_json = response.json()
-        
-        if "candidates" in response_json:
-            return response_json["candidates"][0]["content"]["parts"][0]["text"].strip()
-        else:
-            print(f"[!] Unexpected Gemini API Response: {response_json}")
-            return ""
+        max_retries = 3
+        for attempt in range(max_retries):
+            response = requests.post(url, headers=headers, json=data)
+            response_json = response.json()
+            
+            if "candidates" in response_json:
+                return response_json["candidates"][0]["content"]["parts"][0]["text"].strip()
+            elif "error" in response_json and response_json["error"].get("code") == 503:
+                print(f"     [!] High Demand (503). Retrying in 15 seconds... (Attempt {attempt+1}/{max_retries})")
+                time.sleep(15)
+                continue
+            else:
+                print(f"[!] Unexpected Gemini API Response: {response_json}")
+                return ""
+                
+        print(f"[!] Failed after {max_retries} retries due to server load.")
+        return ""
     except Exception as e:
         print(f"[!] Gemini API Error on {image_path}: {e}")
         return ""
