@@ -11,7 +11,7 @@ from ultralytics import YOLO
 # =========================================================================
 # CONFIGURATION
 # =========================================================================
-API_KEY = "AIzaSyDfKVE3lKeYzpqs494Wc2XwJRM_Rrc4nPA"
+API_KEY = "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"
 ROBOFLOW_DATASET_DIR = r"C:\Users\yashw_d6scpoj\Desktop\Academics\3rd Year\Sem 5\Deep Learning\Project\Medi-Script-AI\Medi-Script-AI\Medicine_Only_Workspace\RoboflowDataset"
 YOLO_MODEL_PATH = r"C:\Users\yashw_d6scpoj\Desktop\Academics\3rd Year\Sem 5\Deep Learning\Project\Medi-Script-AI\Medi-Script-AI\runs\detect\yolo_real_world_best.pt"
 
@@ -19,8 +19,8 @@ OUTPUT_DATASET_DIR = Path("Roboflow_TrOCR_Dataset")
 OUTPUT_IMAGES_DIR = OUTPUT_DATASET_DIR / "Images"
 OUTPUT_CSV_PATH = OUTPUT_DATASET_DIR / "Labels.csv"
 
-# Free tier limits: 15 requests per minute -> 1 request every 4 seconds.
-SLEEP_TIME_SECONDS = 4.1
+# Groq Free Tier for Llama Vision: 30 requests per minute -> 1 request every 2.1 seconds.
+SLEEP_TIME_SECONDS = 2.1
 
 # =========================================================================
 # INITIALIZATION
@@ -35,55 +35,59 @@ yolo_model = YOLO(YOLO_MODEL_PATH)
 # =========================================================================
 # SCRIPT
 # =========================================================================
-def ask_gemini_for_transcription(image_path: str) -> str:
-    """Sends the cropped image to Gemini with auto-retries for 503 High Demand."""
+def ask_groq_for_transcription(image_path: str) -> str:
+    """Sends the cropped image to Groq's Llama 3.2 Vision model."""
     try:
         with open(image_path, "rb") as image_file:
-            encoded_image = base64.b64encode(image_file.read()).decode("utf-8")
-
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={API_KEY}"
-        headers = {"Content-Type": "application/json"}
+            encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+            
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        }
         data = {
-            "contents": [
+            "model": "llama-3.2-11b-vision-preview",
+            "messages": [
                 {
-                    "parts": [
+                    "role": "user",
+                    "content": [
                         {
+                            "type": "text", 
                             "text": "You are an expert medical transcriptionist. Read the text in this cropped image of a prescription. Output EXACTLY what is written, including any numbers, symbols, abbreviations (like Tab, Syp, Cap), and dosages (like 1-0-1, TDS, SOS). Do NOT add any conversational text. Do NOT add markdown formatting. Just output the plain text string that you see."
                         },
                         {
-                            "inline_data": {
-                                "mime_type": "image/jpeg",
-                                "data": encoded_image,
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{encoded_image}"
                             }
-                        },
+                        }
                     ]
                 }
-            ]
+            ],
+            "temperature": 0.0,
+            "max_tokens": 50
         }
-
+        
         max_retries = 3
         for attempt in range(max_retries):
             response = requests.post(url, headers=headers, json=data)
             response_json = response.json()
-
-            if "candidates" in response_json:
-                return response_json["candidates"][0]["content"]["parts"][0][
-                    "text"
-                ].strip()
-            elif "error" in response_json and response_json["error"].get("code") == 503:
-                print(
-                    f"     [!] High Demand (503). Retrying in 15 seconds... (Attempt {attempt+1}/{max_retries})"
-                )
-                time.sleep(15)
+            
+            if "choices" in response_json and len(response_json["choices"]) > 0:
+                return response_json["choices"][0]["message"]["content"].strip()
+            elif "error" in response_json and response_json["error"].get("code") == 429:
+                print(f"     [!] Rate Limit (429). Retrying in 5 seconds... (Attempt {attempt+1}/{max_retries})")
+                time.sleep(5)
                 continue
             else:
-                print(f"[!] Unexpected Gemini API Response: {response_json}")
+                print(f"[!] Unexpected Groq API Response: {response_json}")
                 return ""
-
-        print(f"[!] Failed after {max_retries} retries due to server load.")
+                
+        print(f"[!] Failed after {max_retries} retries due to rate limits.")
         return ""
     except Exception as e:
-        print(f"[!] Gemini API Error on {image_path}: {e}")
+        print(f"[!] Groq API Error on {image_path}: {e}")
         return ""
 
 
@@ -132,9 +136,9 @@ def main():
                         crop_filepath = str(OUTPUT_IMAGES_DIR / crop_filename)
                         cv2.imwrite(crop_filepath, crop)
 
-                        # 2. Ask Gemini for the text
-                        print(f"  -> Sending crop {crop_counter} to Gemini...")
-                        text = ask_gemini_for_transcription(crop_filepath)
+                        # 2. Ask Groq for the text
+                        print(f"  -> Sending crop {crop_counter} to Groq...")
+                        text = ask_groq_for_transcription(crop_filepath)
 
                         if text:
                             # 3. Save to CSV
