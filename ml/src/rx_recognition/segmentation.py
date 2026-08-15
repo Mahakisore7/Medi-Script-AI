@@ -178,13 +178,13 @@ class PaddleOCRTextLineDetector:
         logging.info("Loading PaddleOCR (PP-OCRv4) for robust text detection...")
         # On Windows, MKLDNN can cause a fused_conv2d crash on CPU, so we disable it globally for Paddle
         os.environ["FLAGS_use_mkldnn"] = "0"
+        # Disable PIR API to prevent NotImplementedError on ONEDNN in PaddlePaddle 3.x
+        os.environ["FLAGS_enable_pir_api"] = "0"
         
         # Use English by default, use_gpu=False for CPU
         self.ocr = PaddleOCR(
             use_angle_cls=True, 
             lang="en", 
-            use_gpu=False, 
-            show_log=False,
             det_db_thresh=0.1,         # Lower binarization threshold to catch faint ink
             det_db_box_thresh=0.3,     # Lower box threshold to keep low-confidence text boxes
             det_db_unclip_ratio=2.0,   # Increase dilation to encompass full words
@@ -196,7 +196,7 @@ class PaddleOCRTextLineDetector:
         import cv2
 
         # PaddleOCR returns: [[[[[x, y], [x, y], [x, y], [x, y]], (text, conf)], ...]]
-        results = self.ocr.ocr(image, cls=True)
+        results = self.ocr.ocr(image)
 
         crops = []
         debug_img = image.copy()
