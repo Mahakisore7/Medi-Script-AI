@@ -11,7 +11,7 @@ from ultralytics import YOLO
 # =========================================================================
 # CONFIGURATION
 # =========================================================================
-API_KEY = "AQ.Ab8RN6KSSn6fFR6w1DiuGcpSidklBq4vbtCq_2C8Bs0b0YKF9w"
+API_KEY = "AIzaSyDfKVE3lKeYzpqs494Wc2XwJRM_Rrc4nPA"
 ROBOFLOW_DATASET_DIR = r"C:\Users\yashw_d6scpoj\Desktop\Academics\3rd Year\Sem 5\Deep Learning\Project\Medi-Script-AI\Medi-Script-AI\Medicine_Only_Workspace\RoboflowDataset"
 YOLO_MODEL_PATH = r"C:\Users\yashw_d6scpoj\Desktop\Academics\3rd Year\Sem 5\Deep Learning\Project\Medi-Script-AI\Medi-Script-AI\runs\detect\yolo_real_world_best.pt"
 
@@ -40,7 +40,7 @@ def ask_gemini_for_transcription(image_path: str) -> str:
         with open(image_path, "rb") as image_file:
             encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
             
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
         headers = {'Content-Type': 'application/json'}
         data = {
             "contents": [{
