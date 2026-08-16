@@ -18,7 +18,7 @@ OUTPUT_DATASET_DIR = Path("Roboflow_TrOCR_Dataset")
 OUTPUT_IMAGES_DIR = OUTPUT_DATASET_DIR / "Images"
 OUTPUT_CSV_PATH = OUTPUT_DATASET_DIR / "Labels.csv"
 
-OLLAMA_MODEL = "llama3.2-vision"
+OLLAMA_MODEL = "llava"
 
 # =========================================================================
 # INITIALIZATION
