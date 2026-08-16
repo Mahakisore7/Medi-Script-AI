@@ -3,8 +3,8 @@ import time
 import glob
 import csv
 import cv2
-import easyocr
-from PIL import Image
+import base64
+import requests
 from pathlib import Path
 from ultralytics import YOLO
 
@@ -18,6 +18,8 @@ OUTPUT_DATASET_DIR = Path("Roboflow_TrOCR_Dataset")
 OUTPUT_IMAGES_DIR = OUTPUT_DATASET_DIR / "Images"
 OUTPUT_CSV_PATH = OUTPUT_DATASET_DIR / "Labels.csv"
 
+OLLAMA_MODEL = "llama3.2-vision"
+
 # =========================================================================
 # INITIALIZATION
 # =========================================================================
@@ -27,21 +29,36 @@ OUTPUT_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 print(f"[INFO] Loading YOLO model from: {YOLO_MODEL_PATH}")
 yolo_model = YOLO(YOLO_MODEL_PATH)
 
-# Initialize EasyOCR (runs locally on CPU, 0 APIs needed)
-print("[INFO] Loading EasyOCR (Local Vision Model)...")
-reader = easyocr.Reader(['en'], gpu=False)
-
 # =========================================================================
 # SCRIPT
 # =========================================================================
-def ask_easyocr_for_transcription(image_path: str) -> str:
-    """Uses local EasyOCR to get the text. Guaranteed zero API errors."""
+def ask_ollama_for_transcription(image_path: str) -> str:
+    """Sends the cropped image to local Ollama Vision model."""
     try:
-        results = reader.readtext(image_path, detail=0)
-        # Combine all detected text blocks into a single string
-        return " ".join(results).strip()
+        with open(image_path, "rb") as image_file:
+            encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+            
+        url = "http://localhost:11434/api/generate"
+        data = {
+            "model": OLLAMA_MODEL,
+            "prompt": "You are an expert medical transcriptionist. Read the text in this cropped image of a prescription. Output EXACTLY what is written, including any numbers, symbols, abbreviations (like Tab, Syp, Cap), and dosages (like 1-0-1, TDS, SOS). Do NOT add any conversational text. Do NOT add markdown formatting. Just output the plain text string that you see.",
+            "stream": False,
+            "images": [encoded_image]
+        }
+        
+        response = requests.post(url, json=data)
+        
+        if response.status_code == 200:
+            return response.json().get("response", "").strip()
+        else:
+            print(f"[!] Ollama API Error: {response.text}")
+            return ""
+            
+    except requests.exceptions.ConnectionError:
+        print("[!] Connection Error: Is Ollama running? Start Ollama desktop app first!")
+        return ""
     except Exception as e:
-        print(f"[!] EasyOCR Error on {image_path}: {e}")
+        print(f"[!] Local LLM Error on {image_path}: {e}")
         return ""
 
 def main():
@@ -85,9 +102,9 @@ def main():
                         crop_filepath = str(OUTPUT_IMAGES_DIR / crop_filename)
                         cv2.imwrite(crop_filepath, crop)
                         
-                        # 2. Run Local EasyOCR
-                        print(f"  -> Reading crop {crop_counter} with EasyOCR...")
-                        text = ask_easyocr_for_transcription(crop_filepath)
+                        # 2. Run Local Ollama
+                        print(f"  -> Sending crop {crop_counter} to local Llama-3.2-Vision...")
+                        text = ask_ollama_for_transcription(crop_filepath)
                         
                         if text:
                             # 3. Save to CSV
@@ -106,7 +123,6 @@ def main():
     print("\n=======================================================")
     print(f"Done! Extracted {crop_counter} crops.")
     print(f"Dataset is ready at: {OUTPUT_DATASET_DIR}")
-    print("Open Labels.csv and quickly fix any small spelling typos!")
     print("=======================================================")
 
 if __name__ == "__main__":
