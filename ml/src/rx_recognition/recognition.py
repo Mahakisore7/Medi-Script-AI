@@ -5,12 +5,7 @@ import torch
 from PIL import Image
 
 try:
-    from transformers import (
-        RobertaTokenizer,
-        TrOCRProcessor,
-        VisionEncoderDecoderModel,
-        ViTImageProcessor,
-    )
+    import transformers  # noqa: F401 — availability check
 except ImportError:
     logging.warning("Transformers not installed; TrOCR will fail.")
 
@@ -19,7 +14,8 @@ class TrOCRRecognizer:
     def __init__(self, model_path="models/final_trocr_large_model"):
         """
         Loads the locally fine-tuned TrOCR-Large model and processor.
-        Ensure you have extracted the downloaded Colab model to Medicine_Only_Workspace/models/final_trocr_large_model
+        Ensure you have extracted the downloaded Colab model
+        to models/final_trocr_large_model
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         try:
@@ -161,15 +157,18 @@ def recognize_text(
 
     if _recognizer_finetuned is None:
         # Check if the fine-tuned model from Kaggle/Colab has been downloaded
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        local_model_path = "models/final_trocr_large_model"
+        local_model_v2 = "models/final_trocr_large_model_v2"
+        local_model_v1 = "models/final_trocr_large_model"
 
-        if os.path.exists(local_model_path):
-            logging.info(f"Using locally fine-tuned TrOCR model from {local_model_path}")
-            _recognizer_finetuned = TrOCRRecognizer(local_model_path)
+        if os.path.exists(local_model_v2):
+            logging.info(f"Using fine-tuned TrOCR model (v2) from {local_model_v2}")
+            _recognizer_finetuned = TrOCRRecognizer(local_model_v2)
+        elif os.path.exists(local_model_v1):
+            logging.info(f"Using fine-tuned TrOCR model (v1) from {local_model_v1}")
+            _recognizer_finetuned = TrOCRRecognizer(local_model_v1)
         else:
             logging.warning(
-                f"Local model {local_model_path} not found! Falling back to microsoft/trocr-large-handwritten"
+                "No local models found! Falling back to microsoft/trocr-large-handwritten"
             )
             _recognizer_finetuned = TrOCRRecognizer("microsoft/trocr-large-handwritten")
 

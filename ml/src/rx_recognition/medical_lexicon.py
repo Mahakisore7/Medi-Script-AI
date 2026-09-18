@@ -1,8 +1,16 @@
 import csv
-from collections import defaultdict
+import re
 from pathlib import Path
 
 from rapidfuzz import fuzz
+
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
 
 # --- Section header matching ---
 MEDICAL_TERMS = {
@@ -23,27 +31,24 @@ def _load_csv(path: Path) -> list[str]:
         return [row[0].strip() for row in csv.reader(f) if row and row[0].strip()]
 
 
-def _build_index(entries: list[str]) -> dict[str, list[str]]:
-    """Build a first-letter index for fast fuzzy matching."""
-    index = defaultdict(list)
-    for entry in entries:
-        if entry:
-            index[entry[0].lower()].append(entry)
-    return index
-
-
 # Resolve paths relative to this file:
-# medical_lexicon.py -> ml/src/rx_recognition/ -> ../../.. -> data/lexicon/
 _this_dir = Path(__file__).parent
 _lexicon_dir = _this_dir.parent.parent.parent / "data" / "lexicon"
 
 MEDICINE_LIST = _load_csv(_lexicon_dir / "medicines.csv")
 SYMPTOM_LIST = _load_csv(_lexicon_dir / "symptoms.csv")
 
-MEDICINE_INDEX = _build_index(MEDICINE_LIST)
-SYMPTOM_INDEX = _build_index(SYMPTOM_LIST)
-
 print(f"[medical_lexicon] Loaded {len(MEDICINE_LIST)} medicines, {len(SYMPTOM_LIST)} symptoms")
+
+if HAS_SKLEARN and MEDICINE_LIST:
+    print("[medical_lexicon] Building TF-IDF index for fast fuzzy matching...")
+    # Use character n-grams from length 2 to 4 to handle spelling typos
+    vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4))
+    tfidf_matrix = vectorizer.fit_transform(MEDICINE_LIST)
+else:
+    print("[medical_lexicon] scikit-learn not found or empty lexicon. Falling back to slow search.")
+    vectorizer = None
+    tfidf_matrix = None
 
 
 def fuzzy_match_section(text, threshold=70):
@@ -67,57 +72,92 @@ def fuzzy_match_section(text, threshold=70):
     return None
 
 
-def correct_medicine_name(text, threshold=80):
+def correct_medicine_name(text, threshold=60):
     """
     Given a noisy medicine name from OCR, tries to correct it against the
-    1,142-entry medicine lexicon. Uses first-letter indexing for speed.
-    Returns the corrected name if a strong match is found, otherwise returns original.
+    massive medicine lexicon. Uses TF-IDF for instant lookup across 380k entries,
+    and strips dosage prefixes to avoid punishing exact core matches.
     """
     clean_text = text.strip(" .,;:-()")
     if not clean_text or len(clean_text) < 3:
         return text
 
-    # Try first-letter indexed lookup first (fast path)
-    first_letter = clean_text[0].lower()
-    candidates = MEDICINE_INDEX.get(first_letter, [])
+    # Pre-filtering: Remove common dosage words to find the core medicine name
+    # e.g., "Tab Paracetamol 500mg" -> "Paracetamol"
+    core_text = re.sub(
+        r"\b(tab|cap|syr|inj|iv|oral|suspension|tablet|capsule|drop|drops|ointment|cream)\b",
+        "",
+        clean_text,
+        flags=re.IGNORECASE,
+    )
+    core_text = re.sub(r"\b\d+(\.\d+)?\s*(mg|ml|gm|mcg|g)\b", "", core_text, flags=re.IGNORECASE)
+    core_text = re.sub(r"\b\d+\b", "", core_text)  # Remove standalone numbers only
+    core_text = core_text.strip(" .,;:-()")
 
-    # If no candidates share the first letter, fall back to full list
-    # (OCR might have messed up the first character)
-    if not candidates:
-        candidates = MEDICINE_LIST
+    if not core_text:
+        core_text = clean_text
 
-    best_match = None
-    best_score = 0
+    def _find_best_match(query: str):
+        if HAS_SKLEARN and vectorizer is not None:
+            query_vec = vectorizer.transform([query.lower()])
+            scores = cosine_similarity(query_vec, tfidf_matrix).flatten()
+            best_idx = scores.argmax()
+            return scores[best_idx] * 100.0, MEDICINE_LIST[best_idx]
+        else:
+            b_match, b_score = None, 0
+            for med in MEDICINE_LIST:
+                score = fuzz.token_set_ratio(query.lower(), med.lower())
+                if score > b_score:
+                    b_score = score
+                    b_match = med
+            return b_score, b_match
 
-    for med in candidates:
-        score = fuzz.ratio(clean_text.lower(), med.lower())
-        if score > best_score:
-            best_score = score
-            best_match = med
+    # Try matching the full core_text first
+    tokens = core_text.split()
 
-    if best_score >= threshold:
-        return best_match
+    # Progressively try shorter phrases (e.g. "Loraladin Compraze" -> "Loraladin")
+    # This perfectly handles TrOCR hallucinating extra random words at the end
+    best_overall_match = None
+    best_overall_score = 0
+    best_core_used = core_text
+
+    for n in range(len(tokens), 0, -1):
+        candidate = " ".join(tokens[:n])
+        if len(candidate) < 3:
+            continue
+
+        score, match = _find_best_match(candidate)
+        if score > best_overall_score:
+            best_overall_score = score
+            best_overall_match = match
+            best_core_used = candidate
+
+        if score >= threshold:
+            break
+
+    if best_overall_score >= threshold and best_overall_match:
+        # Replace the part of the text we matched with the corrected text
+        if best_core_used in clean_text:
+            return clean_text.replace(best_core_used, best_overall_match)
+        return best_overall_match
+
     return text
 
 
-def correct_symptom(text, threshold=80):
+def correct_symptom(text, threshold=70):
     """
     Given a noisy symptom from OCR, tries to correct it against the symptom lexicon.
+    Uses token_set_ratio to handle extra words.
     """
     clean_text = text.strip(" .,;:-()")
     if not clean_text or len(clean_text) < 3:
         return text
 
-    first_letter = clean_text[0].lower()
-    candidates = SYMPTOM_INDEX.get(first_letter, [])
-    if not candidates:
-        candidates = SYMPTOM_LIST
-
     best_match = None
     best_score = 0
 
-    for sym in candidates:
-        score = fuzz.ratio(clean_text.lower(), sym.lower())
+    for sym in SYMPTOM_LIST:
+        score = fuzz.token_set_ratio(clean_text.lower(), sym.lower())
         if score > best_score:
             best_score = score
             best_match = sym
