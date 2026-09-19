@@ -11,7 +11,7 @@ from ultralytics import YOLO
 # =========================================================================
 # CONFIGURATION
 # =========================================================================
-API_KEY = "AIzaSyDfKVE3lKeYzpqs494Wc2XwJRM_Rrc4nPA"
+API_KEY = "AQ.Ab8RN6Ka_V0eigMjdIlYOdNPaLN4w9w2WonAEuMr_SBzTGw_4g"
 ROBOFLOW_DATASET_DIR = r"C:\Users\yashw_d6scpoj\Desktop\Academics\3rd Year\Sem 5\Deep Learning\Project\Medi-Script-AI\Medi-Script-AI\Medicine_Only_Workspace\RoboflowDataset"
 YOLO_MODEL_PATH = r"C:\Users\yashw_d6scpoj\Desktop\Academics\3rd Year\Sem 5\Deep Learning\Project\Medi-Script-AI\Medi-Script-AI\runs\detect\yolo_real_world_best.pt"
 
@@ -96,6 +96,24 @@ def main():
 
     # Prepare CSV file
     file_exists = OUTPUT_CSV_PATH.exists()
+
+    start_crop_index = 0
+    if file_exists:
+        with open(OUTPUT_CSV_PATH, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            next(reader, None)
+            for row in reader:
+                if row and row[0].startswith("crop_"):
+                    try:
+                        idx = int(row[0].split("_")[-1].split(".")[0])
+                        start_crop_index = max(start_crop_index, idx + 1)
+                    except:
+                        pass
+        if start_crop_index > 0:
+            print(
+                f"\n[!] Found existing dataset. Auto-resuming from crop {start_crop_index}..."
+            )
+
     with open(OUTPUT_CSV_PATH, mode="a", newline="", encoding="utf-8") as csv_file:
         writer = csv.writer(csv_file)
         if not file_exists:
@@ -125,6 +143,10 @@ def main():
                         # Crop the image
                         crop = original_img[y1:y2, x1:x2]
                         if crop.size == 0:
+                            continue
+
+                        if crop_counter < start_crop_index:
+                            crop_counter += 1
                             continue
 
                         # Save the crop temporarily
