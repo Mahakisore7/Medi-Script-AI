@@ -44,10 +44,19 @@ def run_image_pipeline(image: np.ndarray, mode: str = "yolo") -> dict:
     """
     clean_image = image
 
-    # Check if we have trained YOLO weights
+    # Check if we have trained YOLO weights in the new workspace
     script_dir = os.path.dirname(os.path.abspath(__file__))
     yolo_weights = os.path.abspath(
-        os.path.join(script_dir, "..", "..", "..", "runs", "detect", "yolo_real_world_best.pt")
+        os.path.join(
+            script_dir,
+            "..",
+            "..",
+            "..",
+            "Medicine_Only_Workspace",
+            "runs",
+            "detect",
+            "yolo_real_world_best.pt",
+        )
     )
     use_yolo = os.path.exists(yolo_weights)
 

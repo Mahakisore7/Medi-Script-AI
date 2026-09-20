@@ -1,5 +1,4 @@
 import os
-import logging
 import sys
 import argparse
 import cv2
@@ -8,9 +7,7 @@ from pprint import pprint
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "ml", "src")))
 
 from rx_recognition.pipeline import run_image_pipeline
-
-# Show INFO logs so we can see LocateAnything output clearly
-logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+from rx_recognition_heuristic.pipeline import run_heuristic_pipeline
 
 
 def main():
@@ -30,11 +27,17 @@ def main():
         help="Path to the image",
     )
     parser.add_argument(
+        "--label",
+        type=str,
+        default=None,
+        help="Path to the YOLO ground truth label (.txt). Guarantees perfect TrOCR crops for testing.",
+    )
+    parser.add_argument(
         "--mode",
         type=str,
-        default="paddleocr",
-        choices=["paddleocr", "yolo", "hybrid", "paddle_hybrid", "text"],
-        help="Segmentation mode",
+        default="heuristic",
+        choices=["paddleocr", "yolo", "hybrid", "paddle_hybrid", "text", "heuristic"],
+        help="Segmentation mode. Use 'heuristic' for perfect hybrid behavior.",
     )
     args = parser.parse_args()
 
@@ -45,45 +48,26 @@ def main():
         return
 
     image = cv2.imread(image_path)
+    if image is None:
+        print("Failed to read image with OpenCV")
+        return
+
     SEGMENTATION_MODE = args.mode
 
-    print(
-        f"\nRunning pipeline (Segmentation Mode: {SEGMENTATION_MODE.upper()} -> TrOCR Recognition -> Postprocessing)..."
-    )
-    record = run_image_pipeline(image, mode=SEGMENTATION_MODE)
+    if SEGMENTATION_MODE == "heuristic":
+        print(f"\nRunning HEURISTIC pipeline (Label Path: {args.label})...")
+        record = run_heuristic_pipeline(image, label_path=args.label)
+        print("\n--- Final Structured Record ---")
+        import json
 
-    print("\n--- Final Structured Record ---")
-    pprint({k: v for k, v in record.items() if not k.startswith("_")})
-
-    print("\n--- Field Confidences ---")
-    pprint(record.get("_confidences", {}))
-
-    print("\n--- Raw OCR Text (Before Lexicon Correction) ---")
-    pprint(record.get("_raw_fields", {}))
-
-    # Display the debug annotated image
-    debug_path = os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__), "runs", "debug", "segmentation_debug.jpg"
+        print(json.dumps(record, indent=2))
+    else:
+        print(
+            f"\nRunning pipeline (Segmentation Mode: {SEGMENTATION_MODE.upper()} -> TrOCR Recognition -> Postprocessing)..."
         )
-    )
-    if os.path.exists(debug_path):
-        print(f"\nOpening debug image: {debug_path}")
-        debug_img = cv2.imread(debug_path)
-        # Resize if it's too big to fit on a standard laptop screen
-        h, w = debug_img.shape[:2]
-        if h > 800:
-            scale = 800 / h
-            debug_img = cv2.resize(debug_img, (int(w * scale), int(h * scale)))
-
-        try:
-            cv2.imshow("Annotated Image - Press any key to close", debug_img)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-        except cv2.error:
-            print(
-                "Note: Could not open the GUI window to display the image. You can manually view it at the path above."
-            )
+        record = run_image_pipeline(image, mode=SEGMENTATION_MODE)
+        print("\n--- Final Structured Record ---")
+        pprint({k: v for k, v in record.items() if not k.startswith("_")})
 
 
 if __name__ == "__main__":
