@@ -157,10 +157,14 @@ def recognize_text(
 
     if _recognizer_finetuned is None:
         # Check if the fine-tuned model from Kaggle/Colab has been downloaded
+        local_model_v3 = "models/final_trocr_large_model_v3"
         local_model_v2 = "models/final_trocr_large_model_v2"
         local_model_v1 = "models/final_trocr_large_model"
 
-        if os.path.exists(local_model_v2):
+        if os.path.exists(local_model_v3):
+            logging.info(f"Using fine-tuned TrOCR model (v3) from {local_model_v3}")
+            _recognizer_finetuned = TrOCRRecognizer(local_model_v3)
+        elif os.path.exists(local_model_v2):
             logging.info(f"Using fine-tuned TrOCR model (v2) from {local_model_v2}")
             _recognizer_finetuned = TrOCRRecognizer(local_model_v2)
         elif os.path.exists(local_model_v1):

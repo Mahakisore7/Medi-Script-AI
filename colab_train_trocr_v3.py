@@ -66,12 +66,17 @@ FINAL_MODEL_DIR = "/content/drive/MyDrive/Medi-Script-AI/final_trocr_large_model
 # ===================== CELL 3: Load and Validate Dataset =================
 
 images_dir = os.path.join(DATASET_DIR, "images")
+if not os.path.exists(images_dir):
+    images_dir = os.path.join(DATASET_DIR, "Images")
+
 labels_path = os.path.join(DATASET_DIR, "labels.csv")
+if not os.path.exists(labels_path):
+    labels_path = os.path.join(DATASET_DIR, "Labels.csv")
 
 if not os.path.exists(labels_path):
-    raise FileNotFoundError(f"labels.csv not found at: {labels_path}")
+    raise FileNotFoundError(f"labels.csv (or Labels.csv) not found at: {DATASET_DIR}")
 if not os.path.exists(images_dir):
-    raise FileNotFoundError(f"images/ folder not found at: {images_dir}")
+    raise FileNotFoundError(f"images/ (or Images/) folder not found at: {DATASET_DIR}")
 
 df = pd.read_csv(labels_path)
 print(f"Loaded {len(df)} labeled samples.")
