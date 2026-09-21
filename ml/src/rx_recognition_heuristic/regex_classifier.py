@@ -1,7 +1,9 @@
 import re
 
 
-def classify_text_heuristic(text: str, y_center_normalized: float) -> str:
+def classify_text_heuristic(
+    text: str, y_center_normalized: float, x_center_normalized: float
+) -> str:
     """
     Classifies a raw text string based on simple heuristics and regex rules.
     y_center_normalized is the center Y coordinate of the box / image height.
@@ -31,14 +33,24 @@ def classify_text_heuristic(text: str, y_center_normalized: float) -> str:
         r"\b\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}\b", lower_text
     ):
         return "Date"
+    # Fallback for OCR missing slashes in top-right corner (e.g., 2241212- for 22/12/22)
+    if (
+        re.match(r"^[\d\-\.\/]{6,10}$", text.strip())
+        and y_center_normalized < 0.25
+        and x_center_normalized > 0.6
+    ):
+        return "Date"
 
     # 4. Hospital / Clinic Name (Spatial Rule)
-    # If it's at the top or bottom of the page (y < 0.25 or y > 0.8) and hasn't matched anything else,
+    # If it's at the top/bottom of the page OR on the left margin,
     # it's likely a hospital, clinic, or doctor info.
-    if y_center_normalized < 0.25 or y_center_normalized > 0.8:
+    if y_center_normalized < 0.25 or y_center_normalized > 0.8 or x_center_normalized < 0.25:
         if re.search(r"\b(dr\.?|doctor|m\.b\.b\.s|s\.m\.o\.?)\b", lower_text):
             return "DoctorName"
-        elif re.search(r"\b(hospital|clinic|care|health|medical|ph\.?|mob\.?|reg)\b", lower_text):
+        elif re.search(
+            r"\b(hospital|clinic|care|health|medical|ph\.?|mob\.?|reg|chc|phc|institute|centre)\b",
+            lower_text,
+        ):
             return "HospitalClinicInfo"
         elif len(text.split()) >= 2:  # At least two words (e.g. "City Hospital")
             return "HospitalClinicInfo"

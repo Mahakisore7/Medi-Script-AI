@@ -6,19 +6,18 @@ Because medical prescriptions rely heavily on domain-specific vocabulary (comple
 
 ## Architecture Overview
 
-The pipeline consists of four main phases:
+The pipeline uses a robust dual-model approach, separating the highly cursive medical prescriptions from standard printed metadata.
 
-1. **YOLOv8 Segmentation:**
-   We trained a custom YOLOv8 model on the **Bannari-Amman Kaggle Dataset**. We specifically annotated and extracted only the `medicine` bounding boxes to create a specialized Roboflow dataset. This allows the pipeline to ignore noise (logos, clinic names, doctor signatures) and strictly isolate individual medicine lines.
+1. **Prescription Extraction (YOLOv8 + TrOCR):**
+   - **YOLOv8 Segmentation:** We trained a custom YOLOv8 model to specifically isolate `medicine` bounding boxes (individual handwritten prescription lines). This filters out background noise, logos, and printed text.
+   - **Crop Enhancement:** Raw YOLO crops undergo adaptive thresholding, grayscale conversion, and morphological dilation to maximize handwriting contrast.
+   - **TrOCR-Large:** The enhanced crops are passed to Microsoft's TrOCR-Large model, which excels at decoding complex cursive medical handwriting.
+   - **Robust Lexicon Matching:** The raw TrOCR output is fuzzy-matched against a vast Indian medical lexicon (250,000+ drugs) to automatically correct spelling errors and resolve ambiguities.
 
-2. **Crop Enhancement:**
-   Raw YOLO crops are often low-contrast, inconsistently lit, or too thin. The `crop_enhancer.py` applies adaptive thresholding (CLAHE), grayscale conversion, and morphological dilation to thicken the pen strokes and maximize contrast before OCR.
-
-3. **TrOCR-Large (Transformer-based OCR):**
-   Instead of traditional CNN-RNN architectures, we use Microsoft's **TrOCR-Large** (558 million parameters). By processing the enhanced crop through a Vision Transformer (ViT) encoder and a RoBERTa language decoder, TrOCR leverages its pre-training on massive handwriting datasets (IAM, SROIE) to decode the cursive strokes visually.
-
-4. **Robust Lexicon Matching:**
-   Because handwriting is inherently ambiguous (e.g., `Ecosprin` vs `Ecoseptic`), we process the raw output through a domain-specific drug lexicon (containing 250,000+ Indian medicines). The `postprocess.py` module uses Levenshtein distance combined with a prefix-weighted bonus to snap phonetic misspellings back to the correct medical terms.
+2. **Metadata Extraction (Global OCR + Spatial Parsing):**
+   - **Global Text Detection:** While YOLO handles the medicines, an independent OCR engine scans the entire document for printed text such as clinic headers, doctor names, contact information, and dates.
+   - **Spatial Heuristics:** The system analyzes the spatial coordinates (bounding boxes) of the detected text to map related fields. For example, by finding anchor words like "Name", "Age", or "Sex", the parser searches nearby spatial regions to extract the corresponding patient values.
+   - **Targeted Fallbacks:** If the global OCR misses challenging or single-character handwritten entries (like "M" or "F" for Sex), the system falls back to cropping the isolated spatial region and analyzing it directly with TrOCR.
 
 ## Repository Structure
 
@@ -46,9 +45,9 @@ uv sync
 ### 3. Run Inference
 You can test the pipeline on a raw prescription image by running:
 ```bash
-uv run demo.py "path/to/prescription.jpg" --mode yolo
+uv run demo.py "path/to/prescription.jpg" --mode heuristic
 ```
-The pipeline will output a structured dictionary containing the exact medicine names and dosages detected, and it will save a debug image (`runs/debug/segmentation_debug.jpg`) showing the extracted YOLO bounding boxes.
+The pipeline will output a structured JSON dictionary containing the extracted Patient Information (Name, Age, Sex), Doctor and Hospital Metadata, and the exact medicine names and dosages detected.
 
 ## Advanced: Fine-Tuning TrOCR on Custom Data
 

@@ -39,6 +39,12 @@ def main():
         choices=["paddleocr", "yolo", "hybrid", "paddle_hybrid", "text", "heuristic"],
         help="Segmentation mode. Use 'heuristic' for perfect hybrid behavior.",
     )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Path to save the output JSON. If not provided, saves as <image_name>_output.json in the current directory.",
+    )
     args = parser.parse_args()
 
     image_path = args.image
@@ -53,6 +59,7 @@ def main():
         return
 
     SEGMENTATION_MODE = args.mode
+    record = {}
 
     if SEGMENTATION_MODE == "heuristic":
         print(f"\nRunning HEURISTIC pipeline (Label Path: {args.label})...")
@@ -68,6 +75,21 @@ def main():
         record = run_image_pipeline(image, mode=SEGMENTATION_MODE)
         print("\n--- Final Structured Record ---")
         pprint({k: v for k, v in record.items() if not k.startswith("_")})
+
+    # Save to JSON file
+    out_path = args.output
+    if not out_path:
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        out_path = f"{base_name}_output.json"
+
+    import json
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        # Strip internal fields from the dict before saving
+        clean_record = {k: v for k, v in record.items() if not k.startswith("_")}
+        json.dump(clean_record, f, indent=2, ensure_ascii=False)
+
+    print(f"\n[INFO] Saved output to {out_path}")
 
 
 if __name__ == "__main__":

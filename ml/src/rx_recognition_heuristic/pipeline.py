@@ -7,7 +7,7 @@ from rx_recognition.recognition import recognize_text
 from rx_recognition_heuristic.regex_classifier import classify_text_heuristic
 
 # Minimum confidence to accept OCR results
-MIN_OCR_CONFIDENCE = 20.0
+MIN_OCR_CONFIDENCE = 15.0
 
 
 def _get_yolo_boxes(image: np.ndarray, yolo_weights: str, label_path: str = None) -> list:
@@ -129,11 +129,16 @@ def run_heuristic_pipeline(
             except Exception as e:
                 print(f"[WARNING] Crop enhancement failed: {e}")
 
-            trocr_text, _ = recognize_text(yolo_crop, use_base_model=False, field_type="medicine")
-            final_parsed["Medical Text"].append(trocr_text)
+            from rx_recognition.postprocess import correct_medicine_crop
 
-    if final_parsed["Medical Text"]:
-        final_parsed["Medical Text"] = "\n".join(final_parsed["Medical Text"])
+            text, conf = recognize_text(yolo_crop, use_base_model=False, field_type="medicine")
+
+            # Apply Fuzzy Lexicon Matching to correct minor OCR spelling mistakes
+            corrected_text, fuzzy_conf = correct_medicine_crop(text)
+            if corrected_text != text:
+                print(f"  [Fuzzy] Corrected '{text}' -> '{corrected_text}'")
+
+            final_parsed["Medical Text"].append(corrected_text)
 
     # 3. Global Text Detection (EasyOCR)
     use_gpu = torch.cuda.is_available()
@@ -173,8 +178,9 @@ def run_heuristic_pipeline(
         )
 
         y_center_norm = ((y1 + y2) / 2) / h_img
-        label = classify_text_heuristic(text, y_center_norm)
-        if label not in ["PatientInfo", "Date"]:
+        x_center_norm = ((x1 + x2) / 2) / w_img
+        label = classify_text_heuristic(text, y_center_norm, x_center_norm)
+        if label not in ["PatientInfo"]:
             final_parsed[label].append(text)
             print(f"  [Regex] '{text}' -> {label}")
 
@@ -209,30 +215,44 @@ def run_heuristic_pipeline(
         found.sort(key=lambda x: x["x1"])
         return " ".join([f["text"] for f in found])
 
+    from rapidfuzz import fuzz
+
+    def is_fuzzy_match(keywords, text, threshold=75):
+        if not text:
+            return False
+        words = text.lower().replace(",", " ").replace(".", " ").split()
+        for kw in keywords:
+            for w in words:
+                if fuzz.ratio(kw, w) >= threshold:
+                    return True
+        return False
+
     for b in non_med_boxes:
         low_t = b["text"].lower()
         import re
 
-        if re.search(r"\b(name|namc|patient)\b", low_t):
+        if is_fuzzy_match(["name", "patient"], low_t) or re.search(
+            r"\b(name|namc|patient)\b", low_t
+        ):
             print(f"[DEBUG Spatial] Found Name anchor: '{b['text']}' at {b['cx']}, {b['cy']}")
-            patient["Name"] = re.sub(r"(?i)namc|name|patient", "", b["text"]).strip(" :_")
+            patient["Name"] = re.sub(r"(?i)namc|name|patient|nime", "", b["text"]).strip(" :_")
             if not patient["Name"] or len(patient["Name"]) < 3:
                 # Find the 'Sex' anchor to know where to stop
                 stop_x = 9999
                 for cand in non_med_boxes:
                     if (
                         re.search(r"\b(sex|gender|gen)\b", cand["text"].lower())
-                        and abs(cand["cy"] - b["cy"]) < 45
+                        and abs(cand["cy"] - b["cy"]) < 25
                     ):
                         stop_x = cand["x1"]
                         break
 
-                full_name = find_all_right(b, non_med_boxes, max_y_diff=30, max_x=stop_x)
+                full_name = find_all_right(b, non_med_boxes, max_y_diff=15, max_x=stop_x)
                 if full_name:
                     patient["Name"] = full_name
                     print(f"  -> Extracted full name: '{full_name}'")
 
-        elif re.search(r"\b(age|ag|years|yrs)\b", low_t):
+        elif is_fuzzy_match(["age", "years"], low_t) or re.search(r"\b(age|ag|years|yrs)\b", low_t):
             print(f"[DEBUG Spatial] Found Age anchor: '{b['text']}' at {b['cx']}, {b['cy']}")
             m = re.search(r"(\d{1,3})", b["text"])
             if m:
@@ -241,11 +261,16 @@ def run_heuristic_pipeline(
                 right = find_closest_right(b, non_med_boxes)
                 if right:
                     print(f"  -> Closest right box: '{right['text']}'")
-                    m2 = re.search(r"(\d{1,3})", right["text"])
+                    age_text = right["text"]
+                    # Fix common typo where 'yr' is read as '7' when merged (e.g. 47 / F -> 4 yr / F)
+                    if re.search(r"(\d)7\s*/\s*[FMfm]", age_text):
+                        age_text = re.sub(r"(\d)7\s*/\s*([FMfm])", r"\1 yr / \2", age_text)
+                        print(f"     -> Corrected age typo: '{age_text}'")
+                    m2 = re.search(r"(\d{1,3})", age_text)
                     if m2:
                         patient["Age"] = m2.group(1)
 
-        elif re.search(r"\b(sex|gender|gen)\b", low_t):
+        elif is_fuzzy_match(["sex", "gender"], low_t) or re.search(r"\b(sex|gender|gen)\b", low_t):
             print(f"[DEBUG Spatial] Found Sex anchor: '{b['text']}' at {b['cx']}, {b['cy']}")
             if re.search(r"\b(f|female)\b", low_t):
                 patient["Sex"] = "F"
@@ -265,7 +290,45 @@ def run_heuristic_pipeline(
                     elif len(right["text"].strip()) <= 2 and right["text"].lower().startswith("m"):
                         patient["Sex"] = "M"
 
-        elif re.search(r"\b(date|dt)\b", low_t):
+            if not patient["Sex"]:
+                print("  -> Sex not found via EasyOCR. Falling back to TrOCR crop.")
+                stop_x = w_img
+                for cand in non_med_boxes:
+                    if (
+                        re.search(r"\b(age|ag|date)\b", cand["text"].lower())
+                        and cand["x1"] > b["x2"]
+                        and abs(cand["cy"] - b["cy"]) < 30
+                    ):
+                        stop_x = cand["x1"]
+                        break
+
+                c_x1 = b["x2"]
+                c_x2 = min(stop_x, b["x2"] + 150)
+                c_y1 = max(0, b["y1"] - 10)
+                c_y2 = min(h_img, b["y2"] + 10)
+                sex_crop = image[c_y1:c_y2, c_x1:c_x2]
+                if sex_crop.size > 0:
+                    try:
+                        stext, sconf = recognize_text(
+                            sex_crop, use_base_model=False, field_type="medicine"
+                        )
+                        print(f"     -> TrOCR saw: '{stext}'")
+                        if (
+                            re.search(r"\b(f|female)\b", stext.lower())
+                            or "F" in stext
+                            or "f" in stext
+                        ):
+                            patient["Sex"] = "F"
+                        elif (
+                            re.search(r"\b(m|male)\b", stext.lower())
+                            or "M" in stext
+                            or "m" in stext
+                        ):
+                            patient["Sex"] = "M"
+                    except Exception as e:
+                        print(f"     -> TrOCR fallback failed: {e}")
+
+        elif is_fuzzy_match(["date"], low_t) or re.search(r"\b(date|dt)\b", low_t):
             print(f"[DEBUG Spatial] Found Date anchor: '{b['text']}' at {b['cx']}, {b['cy']}")
             date_val = re.sub(r"(?i)date|dt", "", b["text"]).strip(" :_")
             if not date_val or len(date_val) < 4:
@@ -301,14 +364,19 @@ def run_heuristic_pipeline(
         date_val = re.sub(r"(\d{1,2})1(\d{1,2}[/\-]\d{2,4})", r"\1/\2", date_val)
 
     final_parsed["Patient"] = patient
-    final_parsed["Date"] = date_val
+    if date_val:
+        final_parsed["Date"] = date_val
+    elif final_parsed.get("Date"):
+        final_parsed["Date"] = " | ".join(final_parsed["Date"])
+    else:
+        final_parsed["Date"] = ""
 
     if "PatientInfo" in final_parsed:
         del final_parsed["PatientInfo"]
 
     # Cleanup empty fields and join
     for k in list(final_parsed.keys()):
-        if k in ["Patient", "Date"]:
+        if k in ["Patient", "Date", "Medical Text"]:
             continue
         if isinstance(final_parsed[k], list):
             final_parsed[k] = " | ".join(final_parsed[k])

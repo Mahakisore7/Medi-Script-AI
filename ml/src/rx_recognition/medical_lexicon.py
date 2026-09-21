@@ -72,30 +72,68 @@ def fuzzy_match_section(text, threshold=70):
     return None
 
 
-def correct_medicine_name(text, threshold=60):
+def correct_medicine_name(text, threshold=45):
     """
     Given a noisy medicine name from OCR, tries to correct it against the
-    massive medicine lexicon. Uses TF-IDF for instant lookup across 380k entries,
-    and strips dosage prefixes to avoid punishing exact core matches.
+    massive medicine lexicon. Uses TF-IDF for instant lookup across 380k entries.
     """
     clean_text = text.strip(" .,;:-()")
     if not clean_text or len(clean_text) < 3:
         return text
 
-    # Pre-filtering: Remove common dosage words to find the core medicine name
-    # e.g., "Tab Paracetamol 500mg" -> "Paracetamol"
-    core_text = re.sub(
-        r"\b(tab|cap|syr|inj|iv|oral|suspension|tablet|capsule|drop|drops|ointment|cream)\b",
-        "",
-        clean_text,
-        flags=re.IGNORECASE,
-    )
-    core_text = re.sub(r"\b\d+(\.\d+)?\s*(mg|ml|gm|mcg|g)\b", "", core_text, flags=re.IGNORECASE)
-    core_text = re.sub(r"\b\d+\b", "", core_text)  # Remove standalone numbers only
-    core_text = core_text.strip(" .,;:-()")
+    # Extract the potential medicine name by skipping leading dosages/numbers
+    tokens = clean_text.split()
 
-    if not core_text:
-        core_text = clean_text
+    dosage_keywords = {
+        "tab",
+        "cap",
+        "syr",
+        "syp",
+        "syrup",
+        "inj",
+        "iv",
+        "oral",
+        "suspension",
+        "tablet",
+        "capsule",
+        "drop",
+        "drops",
+        "ointment",
+        "cream",
+        "bd",
+        "od",
+        "tds",
+        "sos",
+        "hs",
+        "ac",
+        "pc",
+        "mg",
+        "ml",
+        "gm",
+        "per",
+        "mcg",
+    }
+
+    start_idx = 0
+    for i, token in enumerate(tokens):
+        if re.search(r"\d", token) or token.lower() in dosage_keywords:
+            continue
+        start_idx = i
+        break
+    else:
+        return text
+
+    med_tokens = []
+    for token in tokens[start_idx:]:
+        # Stop collecting medicine name if we hit a number or a trailing dosage keyword
+        if re.search(r"\d", token) or token.lower() in dosage_keywords:
+            break
+        med_tokens.append(token)
+
+    if not med_tokens:
+        return text
+
+    med_name = " ".join(med_tokens)
 
     def _find_best_match(query: str):
         if HAS_SKLEARN and vectorizer is not None:
@@ -112,34 +150,17 @@ def correct_medicine_name(text, threshold=60):
                     b_match = med
             return b_score, b_match
 
-    # Try matching the full core_text first
-    tokens = core_text.split()
-
-    # Progressively try shorter phrases (e.g. "Loraladin Compraze" -> "Loraladin")
-    # This perfectly handles TrOCR hallucinating extra random words at the end
-    best_overall_match = None
-    best_overall_score = 0
-    best_core_used = core_text
-
-    for n in range(len(tokens), 0, -1):
-        candidate = " ".join(tokens[:n])
+    # Progressive fallback: try full med_tokens, then fewer tokens if no match
+    for n in range(len(med_tokens), 0, -1):
+        candidate = " ".join(med_tokens[:n])
         if len(candidate) < 3:
             continue
 
         score, match = _find_best_match(candidate)
-        if score > best_overall_score:
-            best_overall_score = score
-            best_overall_match = match
-            best_core_used = candidate
-
-        if score >= threshold:
-            break
-
-    if best_overall_score >= threshold and best_overall_match:
-        # Replace the part of the text we matched with the corrected text
-        if best_core_used in clean_text:
-            return clean_text.replace(best_core_used, best_overall_match)
-        return best_overall_match
+        if score >= threshold and match:
+            # Reconstruct string safely using regex to replace only the matched tokens
+            pattern = r"\s+".join([re.escape(t) for t in med_tokens[:n]])
+            return re.sub(pattern, match, text, count=1, flags=re.IGNORECASE)
 
     return text
 
