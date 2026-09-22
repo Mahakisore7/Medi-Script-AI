@@ -74,7 +74,7 @@ def is_overlapping_any(box_inner, yolo_boxes, threshold=0.1):
 
 
 def run_heuristic_pipeline(
-    image: np.ndarray, yolo_weights_path: str = None, label_path: str = None
+    image: np.ndarray, yolo_weights_path: str = None, label_path: str = None, output_dir: str = None
 ) -> dict[str, Any]:
     """
     1. Finds Prescription Anchor via YOLO (or ground truth label if provided).
@@ -105,6 +105,15 @@ def run_heuristic_pipeline(
 
     # 1. Anchor Detection (Now a list of boxes)
     yolo_boxes = _get_yolo_boxes(image, yolo_weights_path, label_path)
+
+    if output_dir:
+        import cv2
+
+        yolo_img = image.copy()
+        for box in yolo_boxes:
+            cv2.rectangle(yolo_img, (box[0], box[1]), (box[2], box[3]), (0, 0, 255), 2)
+        cv2.imwrite(os.path.join(output_dir, "yolo_crops.jpg"), yolo_img)
+
     if yolo_boxes:
         print(f"[INFO] YOLO found {len(yolo_boxes)} Prescription crops!")
     else:
@@ -145,6 +154,20 @@ def run_heuristic_pipeline(
     reader = easyocr.Reader(["en"], gpu=use_gpu)
     print("[INFO] Running Global Text Detection for headers/footers...")
     ocr_results = reader.readtext(image, detail=1, paragraph=False)
+
+    if output_dir:
+        import cv2
+
+        easyocr_img = image.copy()
+        for res in ocr_results:
+            if len(res) == 2:
+                bbox = res[0]
+            else:
+                bbox = res[0]
+            pts = np.array(bbox, np.int32)
+            pts = pts.reshape((-1, 1, 2))
+            cv2.polylines(easyocr_img, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
+        cv2.imwrite(os.path.join(output_dir, "easyocr.jpg"), easyocr_img)
 
     # 4. Reconciliation and Spatial Parsing
     non_med_boxes = []
@@ -328,7 +351,44 @@ def run_heuristic_pipeline(
                     except Exception as e:
                         print(f"     -> TrOCR fallback failed: {e}")
 
-        elif is_fuzzy_match(["date"], low_t) or re.search(r"\b(date|dt)\b", low_t):
+        # Fallback 1: Implicit Name Anchor (Mr., Mrs., Ms., Mast., Master)
+        elif not patient.get("Name") and re.search(
+            r"\b(mr\.?|mrs\.?|ms\.?|mast\.?|master)\b", low_t
+        ):
+            print(
+                f"[DEBUG Spatial] Found implicit Name anchor (Title): '{b['text']}' at {b['cx']}, {b['cy']}"
+            )
+            patient["Name"] = re.sub(
+                r"(?i)\b(mr\.?|mrs\.?|ms\.?|mast\.?|master)\b", "", b["text"]
+            ).strip(" :_")
+            if not patient["Name"] or len(patient["Name"]) < 3:
+                full_name = find_all_right(b, non_med_boxes, max_y_diff=15)
+                if full_name:
+                    patient["Name"] = full_name
+                    print(f"  -> Extracted full name via title: '{full_name}'")
+
+        # Fallback 2: Implicit Age/Sex Pattern (e.g. 28/M, 45 / F, 12yrs/m)
+        elif not (patient.get("Age") and patient.get("Sex")):
+            m_age_sex = re.search(r"(\d{1,3})\s*(?:yrs|yr|y|years)?\s*/\s*([mMfF])\b", b["text"])
+            if m_age_sex:
+                print(f"[DEBUG Spatial] Found implicit Age/Sex pattern: '{b['text']}'")
+                if not patient.get("Age"):
+                    patient["Age"] = m_age_sex.group(1)
+                if not patient.get("Sex"):
+                    patient["Sex"] = m_age_sex.group(2).upper()
+
+        # Fallback 3: Implicit Date Pattern (e.g. 12/10/22, 12-10-2022) - allowing some OCR alphanumeric errors
+        if not date_val:
+            m_date = re.search(
+                r"\b([0-9A-Za-z]{1,2}\s*[./-]\s*[0-9A-Za-z]{1,2}\s*[./-]\s*[0-9A-Za-z]{2,4})\b",
+                b["text"],
+            )
+            if m_date:
+                # Basic check to avoid matching random things like "O/whitetuskdental" (already handled by bounded length)
+                print(f"[DEBUG Spatial] Found implicit Date pattern: '{m_date.group(1)}'")
+                date_val = m_date.group(1)
+
+        if is_fuzzy_match(["date"], low_t) or re.search(r"\b(date|dt)\b", low_t):
             print(f"[DEBUG Spatial] Found Date anchor: '{b['text']}' at {b['cx']}, {b['cy']}")
             date_val = re.sub(r"(?i)date|dt", "", b["text"]).strip(" :_")
             if not date_val or len(date_val) < 4:

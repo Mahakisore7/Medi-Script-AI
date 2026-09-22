@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "easyocr>=1.7.2",
+    "google-genai>=2.24.0",
     "paddleocr>=3.4.1",
     "paddlepaddle>=3.3.1",
+    "python-dotenv>=1.2.3",
 ]
 
 [tool.uv.workspace]

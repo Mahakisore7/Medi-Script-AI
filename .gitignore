@@ -33,3 +33,18 @@ web/dist/
 runs/
 demo_output*.txt
 PRD.md
+
+# Generated Data and Downloads
+*.zip
+scratch/
+outputs/
+Roboflow_TrOCR_Dataset/
+input_images/
+working_v1/
+Medicine_Only_Workspace/
+dataset_generation/
+
+Medical-Prescription-2/
+output_dataset/
+models/
+1_output*.json

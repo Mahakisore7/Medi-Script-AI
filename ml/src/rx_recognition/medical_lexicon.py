@@ -72,7 +72,7 @@ def fuzzy_match_section(text, threshold=70):
     return None
 
 
-def correct_medicine_name(text, threshold=45):
+def correct_medicine_name(text, threshold=75):
     """
     Given a noisy medicine name from OCR, tries to correct it against the
     massive medicine lexicon. Uses TF-IDF for instant lookup across 380k entries.
@@ -114,26 +114,28 @@ def correct_medicine_name(text, threshold=45):
         "mcg",
     }
 
-    start_idx = 0
-    for i, token in enumerate(tokens):
-        if re.search(r"\d", token) or token.lower() in dosage_keywords:
+    # Find candidate sequences of words (skipping numbers and dosage keywords)
+    tokens = clean_text.split()
+    candidate_sequences = []
+    current_seq = []
+
+    for token in tokens:
+        clean_tok = re.sub(r"[^\w]", "", token)
+        if not clean_tok:
             continue
-        start_idx = i
-        break
-    else:
+        if re.search(r"\d", clean_tok) or clean_tok.lower() in dosage_keywords:
+            if current_seq:
+                candidate_sequences.append(current_seq)
+                current_seq = []
+        else:
+            if len(clean_tok) > 1:  # Ignore single letters like 'f' or 'x'
+                current_seq.append(token)  # Keep original token for replacement
+
+    if current_seq:
+        candidate_sequences.append(current_seq)
+
+    if not candidate_sequences:
         return text
-
-    med_tokens = []
-    for token in tokens[start_idx:]:
-        # Stop collecting medicine name if we hit a number or a trailing dosage keyword
-        if re.search(r"\d", token) or token.lower() in dosage_keywords:
-            break
-        med_tokens.append(token)
-
-    if not med_tokens:
-        return text
-
-    med_name = " ".join(med_tokens)
 
     def _find_best_match(query: str):
         if HAS_SKLEARN and vectorizer is not None:
@@ -150,17 +152,30 @@ def correct_medicine_name(text, threshold=45):
                     b_match = med
             return b_score, b_match
 
-    # Progressive fallback: try full med_tokens, then fewer tokens if no match
-    for n in range(len(med_tokens), 0, -1):
-        candidate = " ".join(med_tokens[:n])
-        if len(candidate) < 3:
-            continue
+    replacements = []
 
-        score, match = _find_best_match(candidate)
-        if score >= threshold and match:
-            # Reconstruct string safely using regex to replace only the matched tokens
-            pattern = r"\s+".join([re.escape(t) for t in med_tokens[:n]])
-            return re.sub(pattern, match, text, count=1, flags=re.IGNORECASE)
+    for seq in candidate_sequences:
+        best_seq_score = 0
+        best_seq_match = None
+        best_seq_tokens = None
+
+        for n in range(len(seq), 0, -1):
+            candidate = " ".join(seq[:n])
+            if len(candidate) < 3:
+                continue
+
+            score, match = _find_best_match(candidate)
+            if score >= threshold and score > best_seq_score:
+                best_seq_score = score
+                best_seq_match = match
+                best_seq_tokens = seq[:n]
+
+        if best_seq_match and best_seq_tokens:
+            replacements.append((best_seq_tokens, best_seq_match))
+
+    for tokens_to_replace, match in replacements:
+        pattern = r"\s+".join([re.escape(t) for t in tokens_to_replace])
+        text = re.sub(pattern, match, text, count=1, flags=re.IGNORECASE)
 
     return text
 
