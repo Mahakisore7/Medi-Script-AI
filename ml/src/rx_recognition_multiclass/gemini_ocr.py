@@ -61,11 +61,14 @@ def recognize_with_gemini(image: np.ndarray, field_type: str = "medicine") -> tu
         pil_img = Image.fromarray(image[:, :, ::-1])  # BGR → RGB
 
         import io
+        import time
 
         buf = io.BytesIO()
         pil_img.save(buf, format="PNG")
         image_bytes = buf.getvalue()
 
+        # Sleep for 4 seconds to avoid hitting Gemini Free Tier 15 RPM limits
+        time.sleep(4)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[

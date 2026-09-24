@@ -51,9 +51,11 @@ def generate_dosage_advice(medicines: list[str]) -> str:
         return "No medicines detected to provide advice for."
 
     try:
+        import time
         client = _get_client()
         prompt = _ADVICE_PROMPT + "\n- " + "\n- ".join(medicines)
 
+        time.sleep(4)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,

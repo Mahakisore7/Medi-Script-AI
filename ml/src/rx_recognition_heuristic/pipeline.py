@@ -140,7 +140,12 @@ def run_heuristic_pipeline(
 
             from rx_recognition.postprocess import correct_medicine_crop
 
-            text, conf = recognize_text(yolo_crop, use_base_model=False, field_type="medicine")
+            from rx_recognition_multiclass.gemini_ocr import recognize_with_gemini
+            text, conf = recognize_with_gemini(yolo_crop, field_type="medicine")
+
+            if not text:
+                print(f"[TrOCR] Gemini failed or returned UNREADABLE. Falling back to TrOCR...")
+                text, conf = recognize_text(yolo_crop, use_base_model=False, field_type="medicine")
 
             # Apply Fuzzy Lexicon Matching to correct minor OCR spelling mistakes
             corrected_text, fuzzy_conf = correct_medicine_crop(text)

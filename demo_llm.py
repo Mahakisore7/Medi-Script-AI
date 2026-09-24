@@ -56,7 +56,12 @@ def main():
         json.dump(record, f, indent=2)
     print(f"[INFO] Saved normal pipeline output to {normal_out_file}")
 
-    print("\n[2] Extracting Medicines and Querying LLM...")
+    print("\n[2] Classifying 'Other' fields via LLM...")
+    print("--------------------------------------------------")
+    from rx_llm_advice.other_classifier import classify_other_fields
+    record = classify_other_fields(record)
+
+    print("\n[3] Extracting Medicines and Querying LLM...")
     print("--------------------------------------------------")
     # Extract medicines from the record
     medicines = record.get("Medical Text", [])
