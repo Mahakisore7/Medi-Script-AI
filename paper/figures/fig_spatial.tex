@@ -1,0 +1,33 @@
+% Figure: spatial anchor parsing on an abstract prescription layout (no real patient data).
+\begin{tikzpicture}[x=1cm,y=1cm, font=\scriptsize]
+  % page
+  \draw[line width=0.7pt, fill=white] (0,0) rectangle (8.6,6.2);
+  % header (hospital / doctor)
+  \node[draw=cPar!80!black, fill=cPar!12, minimum width=7.6cm, minimum height=0.7cm] at (4.3,5.65) {Hospital / doctor header (regex + top-band rule)};
+  % anchor row 1
+  \node[draw=cPar!80!black, fill=cPar!25] (nm) at (1.0,4.5) {Name};
+  \node[draw=black!50, dashed, minimum width=2.9cm, minimum height=0.55cm] (nv) at (3.55,4.5) {\textit{handwritten value}};
+  \node[draw=cPar!80!black, fill=cPar!25] (sx) at (5.7,4.5) {Sex};
+  \node[draw=black!50, dashed, minimum width=1.2cm, minimum height=0.55cm] (sv) at (7.0,4.5) {\textit{value}};
+  % anchor row 2
+  \node[draw=cPar!80!black, fill=cPar!25] (ag) at (1.0,3.6) {Age};
+  \node[draw=black!50, dashed, minimum width=1.4cm, minimum height=0.55cm] (av) at (2.6,3.6) {\textit{value}};
+  \node[draw=cPar!80!black, fill=cPar!25] (dt) at (5.7,3.6) {Date};
+  \node[draw=black!50, dashed, minimum width=1.4cm, minimum height=0.55cm] (dv) at (7.1,3.6) {\textit{value}};
+  % YOLO medicine boxes
+  \foreach \y/\t in {2.55/line 1, 1.85/line 2, 1.15/line 3} {
+    \node[draw=cDet!80!black, fill=cDet!12, minimum width=6.4cm, minimum height=0.5cm] at (4.3,\y) {YOLO box: handwritten medicine \t};
+  }
+  \node[font=\tiny\itshape, text=cDet!70!black] at (4.3,0.55) {text overlapping a YOLO box ($>10\%$ of its area) is excluded from this path};
+
+  % arrows
+  \draw[arr, cPar!80!black] (nm.east) -- (nv.west);
+  \draw[arr, cPar!80!black] (sx.east) -- (sv.west);
+  \draw[arr, cPar!80!black] (ag.east) -- (av.west);
+  \draw[arr, cPar!80!black] (dt.east) -- (dv.west);
+  % stop condition
+  \draw[darr] (nv.south) -- ++(0,-0.35) -| node[lab, pos=0.25, below] {name stops at the \textit{Sex} anchor} (sx.south);
+  % legend
+  \node[anchor=west, text width=5.2cm, align=left] at (9.0,4.9) {\textbf{Rule for an anchor $a$}\\ choose boxes $b$ with\\ $|c_y(b)-c_y(a)|<\delta$ and $x_1(b)\ge x_2(a)$;\\ pick the nearest ($\delta{=}30$\,px; $15$ for name,\\ $45$ for sex, $75$ for date).};
+  \node[anchor=west, text width=5.2cm, align=left] at (9.0,2.7) {\textbf{Fall-backs}\\ (i) title \textit{Mr./Mrs./Mast.}\ $\Rightarrow$ name\\ (ii) pattern \texttt{28/M}, \texttt{12 yrs / F}\\ (iii) date regex \texttt{dd/mm/yy}\\ (iv) crop beside \textit{Sex} read by TrOCR.};
+\end{tikzpicture}

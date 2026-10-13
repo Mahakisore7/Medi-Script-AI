@@ -1,0 +1,41 @@
+% Figure: overall system architecture (two parallel paths merged by the LLM stage).
+\begin{tikzpicture}[node distance=5mm and 7mm]
+  % Input and Stage 1
+  \node[io]  (in)  {Prescription photograph $P$\\ (JPG / PNG / WEBP)};
+  \node[det, right=of in] (yolo) {\textbf{Stage 1}\\ YOLOv8-nano\\ handwritten-line localisation};
+
+  % Handwritten medicine path (upper lane)
+  \node[enh, above right=4mm and 9mm of yolo] (enh) {\textbf{Stage 2a}\\ Crop enhancement\\ upscale $\cdot$ CLAHE $\cdot$ adaptive threshold};
+  \node[rec, right=of enh] (rec) {\textbf{Stage 2b}\\ Recognition\\ Gemini Vision $\rightarrow$ TrOCR-Large\\ + char-LM beam rescoring};
+  \node[vpost, right=of rec] (lex) {\textbf{Stage 3}\\ Lexicon correction\\ TF-IDF char $n$-grams\\ (cosine, $\tau{=}0.6$)};
+
+  % Layout / demographics path (lower lane)
+  \node[par, below right=4mm and 9mm of yolo] (ocr) {\textbf{Stage 4a}\\ Full-page text\\ EasyOCR (CRAFT + CRNN)\\ minus YOLO regions};
+  \node[par, right=of ocr] (cls) {\textbf{Stage 4b}\\ Regex + position\\ classifier\\ Doctor / Clinic / Date / Other};
+  \node[par, right=of cls] (sp) {\textbf{Stage 4c}\\ Spatial anchor parser\\ Name $\cdot$ Age $\cdot$ Sex $\cdot$ Date};
+
+  % Merge
+  \coordinate (mid) at ($(lex.east)!0.5!(sp.east)$);
+  \node[llm, anchor=west] (llm) at ($(mid)+(11mm,0)$) {\textbf{Stage 5}\\ LLM post-processing\\ other-field classifier\\ dosage advice};
+  \node[vout, below=6mm of llm] (json) {Structured record\\ JSON / CSV $\rightarrow$ EHR};
+
+  % Edges
+  \draw[arr] (in) -- (yolo);
+  \draw[arr] (yolo.east) -- ++(4mm,0) |- node[lab, pos=0.78, above] {line boxes $B$} (enh.west);
+  \draw[arr] (yolo.east) -- ++(4mm,0) |- node[lab, pos=0.78, below] {image $\setminus B$} (ocr.west);
+  \draw[arr] (enh) -- (rec);
+  \draw[arr] (rec) -- (lex);
+  \draw[arr] (ocr) -- (cls);
+  \draw[arr] (cls) -- (sp);
+  \draw[arr] (lex.east) -- ++(4mm,0) |- (llm.west);
+  \draw[arr] (sp.east) -- ++(4mm,0) |- (llm.west);
+  \draw[arr] (llm) -- (json);
+
+  % Lanes
+  \begin{scope}[on background layer]
+    \node[lane, fit=(enh)(rec)(lex)] (laneU) {};
+    \node[lane, fit=(ocr)(cls)(sp)] (laneL) {};
+  \end{scope}
+  \node[lanelabel, above=1pt of laneU.north west, anchor=south west] {Handwritten medicine path};
+  \node[lanelabel, below=1pt of laneL.south west, anchor=north west] {Layout \& demographics path};
+\end{tikzpicture}

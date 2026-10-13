@@ -1,0 +1,25 @@
+% Figure: Stage 2b/3 internals: TrOCR decoding, LM rescoring, lexicon correction.
+\begin{tikzpicture}[node distance=4mm and 5mm]
+  \node[io, small] (x) {Enhanced\\ crop};
+  \node[rec, small, right=of x] (patch) {Resize\\ $384^2$,\\ $16{\times}16$ patches};
+  \node[rec, right=of patch, text width=1.9cm] (enc) {\textbf{ViT encoder}\\ (self-attention)};
+  \node[rec, right=of enc, text width=2.2cm] (dec) {\textbf{Transformer decoder}\\ cross-attention,\\ BPE vocabulary};
+  \node[rec, right=of dec, text width=2.0cm] (nb) {$N$-best list\\ $\{(t_i,c_i)\}_{i=1}^{N}$\\ beam search};
+
+  \node[vpost, below=9mm of nb, text width=3.1cm] (lm) {\textbf{Domain LM rescoring}\\ $s_i = \frac{c_i}{100} + 0.5\,\mathrm{LM}(t_i) + \mathbb{1}[t_i\!\in\!\mathcal{L}]$};
+  \node[vpost, left=of lm, text width=3.0cm] (tf) {\textbf{TF-IDF lexicon match}\\ char 2--4-grams,\\ $\operatorname{argmax}_{m\in\mathcal{L}}\cos(\mathbf v_t,\mathbf v_m)$};
+  \node[vpost, left=of tf, text width=2.4cm] (th) {\textbf{Threshold}\\ $\cos\ge 0.60$ $\Rightarrow$ replace;\\ else keep raw};
+  \node[vout, left=of th, text width=1.8cm] (res) {Final text\\ $+$ confidence};
+
+  \draw[arr] (x) -- (patch);
+  \draw[arr] (patch) -- (enc);
+  \draw[arr] (enc) -- (dec);
+  \draw[arr] (dec) -- (nb);
+  \draw[arr] (nb) -- (lm);
+  \draw[arr] (lm) -- (tf);
+  \draw[arr] (tf) -- (th);
+  \draw[arr] (th) -- (res);
+
+  \node[lab, above=1mm of enc] {pre-trained on printed + synthetic handwriting};
+  \node[lab, above=1mm of dec] {fine-tuned (v1$\rightarrow$v4)};
+\end{tikzpicture}

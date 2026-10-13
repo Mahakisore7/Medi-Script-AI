@@ -1,0 +1,14 @@
+% Figure: field-localisation metrics (medicine-line detector, 50 epochs, Tesla T4).
+\begin{tikzpicture}[x=1cm,y=0.042cm, font=\scriptsize]
+  \draw[->] (0,0) -- (0,105) node[above] {\%};
+  \foreach \v in {0,20,40,60,80,100} {
+    \draw[black!15] (0,\v) -- (6.6,\v);
+    \node[left] at (0,\v) {\v};
+  }
+  \draw (0,0) -- (6.6,0);
+  \foreach \x/\v/\n/\c in {0.45/86.1/mAP50/cDet, 2.05/46.2/mAP50--95/cEnh, 3.65/81.9/Precision/cPost, 5.25/80.6/Recall/cRec} {
+    \fill[\c!70] (\x,0) rectangle (\x+1,\v);
+    \node[above] at (\x+0.5,\v) {\v};
+    \node[below, text width=1.5cm, align=center] at (\x+0.5,-2) {\n};
+  }
+\end{tikzpicture}

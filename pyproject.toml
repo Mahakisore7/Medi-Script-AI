@@ -1,18 +1,58 @@
 [project]
 name = "medi-script-ai"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "Hybrid deep-learning pipeline that digitises handwritten medical prescriptions into structured records."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Mahakisore M" },
+    { name = "Yashwanth B" },
+]
 dependencies = [
-    "easyocr>=1.7.2",
-    "google-genai>=2.24.0",
-    "paddleocr>=3.4.1",
-    "paddlepaddle>=3.3.1",
-    "python-dotenv>=1.2.3",
+    "numpy",
+    "opencv-python-headless",
+    "pillow",
+    "rapidfuzz>=3.0",
+    "scikit-learn",
+    "pandas",
+    "python-dotenv",
+    "pyyaml",
 ]
 
-[tool.uv.workspace]
-members = [
-    "ml",
+[project.optional-dependencies]
+ml = [
+    "torch",
+    "torchvision",
+    "ultralytics>=8.3",
+    "transformers>=4.40",
+    "easyocr>=1.7.2",
+    "albumentations>=2.0",
+    "evaluate",
+    "jiwer",
+    "accelerate",
+    "sentencepiece",
 ]
+llm = ["google-genai>=1.0"]
+api = ["fastapi", "uvicorn", "python-multipart"]
+viz = ["matplotlib"]
+dev = ["pytest", "pytest-cov", "ruff", "pre-commit"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mediscript"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

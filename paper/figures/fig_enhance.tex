@@ -1,0 +1,17 @@
+% Figure: crop-enhancement chain applied to every YOLO crop.
+\begin{tikzpicture}[node distance=3.2mm]
+  \node[io, small] (c0) {Raw crop\\ $C$};
+  \node[enh, small, right=of c0] (c1) {Upscale\\ $\times 2$\\ Lanczos-4};
+  \node[enh, small, right=of c1] (c2) {Grayscale\\ $0.299R{+}0.587G$\\ $+0.114B$};
+  \node[enh, small, right=of c2] (c3) {Gaussian\\ blur $3{\times}3$};
+  \node[enh, small, right=of c3] (c4) {CLAHE\\ clip $2.5$\\ tile $4{\times}4$};
+  \node[enh, small, right=of c4] (c5) {Adaptive\\ Gaussian\\ thr.\ $b{=}15,\,C{=}8$};
+  \node[enh, small, right=of c5] (c6) {Dilate\\ $2{\times}2$\\ kernel};
+  \node[io, small, right=of c6] (c7) {Enhanced\\ BGR crop};
+  \foreach \a/\b in {c0/c1,c1/c2,c2/c3,c3/c4,c4/c5,c5/c6,c6/c7} \draw[arr] (\a) -- (\b);
+  \node[lab, below=2mm of c1, text width=1.6cm, align=center] {larger glyph patches for the ViT};
+  \node[lab, below=2mm of c3, text width=1.9cm, align=center] {cheap denoise ($<1$\,ms)};
+  \node[lab, below=2mm of c4, text width=1.9cm, align=center] {local contrast / shadows};
+  \node[lab, below=2mm of c5, text width=2.1cm, align=center] {binarise per neighbourhood};
+  \node[lab, below=2mm of c6, text width=1.8cm, align=center] {reconnect thin strokes};
+\end{tikzpicture}

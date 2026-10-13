@@ -1,0 +1,32 @@
+% Shared TikZ styles for all Medi-Script-AI diagrams.
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc,shapes.geometric,decorations.pathreplacing}
+
+\definecolor{cIn}{RGB}{90,90,90}
+\definecolor{cDet}{RGB}{31,119,180}
+\definecolor{cEnh}{RGB}{148,103,189}
+\definecolor{cRec}{RGB}{214,39,40}
+\definecolor{cPost}{RGB}{44,160,44}
+\definecolor{cPar}{RGB}{255,127,14}
+\definecolor{cLlm}{RGB}{23,190,207}
+\definecolor{cOut}{RGB}{50,50,50}
+
+\tikzset{
+  base/.style={draw, rounded corners=2.5pt, align=center, font=\scriptsize,
+               inner sep=3.5pt, minimum height=9mm, text width=2.35cm, line width=0.5pt},
+  io/.style={base, fill=cIn!10, draw=cIn!80!black},
+  det/.style={base, fill=cDet!12, draw=cDet!80!black},
+  enh/.style={base, fill=cEnh!12, draw=cEnh!80!black},
+  rec/.style={base, fill=cRec!10, draw=cRec!80!black},
+  vpost/.style={base, fill=cPost!12, draw=cPost!80!black},
+  par/.style={base, fill=cPar!14, draw=cPar!80!black},
+  llm/.style={base, fill=cLlm!14, draw=cLlm!80!black},
+  vout/.style={base, fill=cOut!10, draw=cOut, very thick},
+  dec/.style={diamond, aspect=2.2, draw=cOut!80, fill=yellow!12, align=center,
+              font=\scriptsize, inner sep=1pt, line width=0.5pt},
+  small/.style={base, text width=1.45cm, minimum height=8mm, inner sep=2pt},
+  arr/.style={-{Stealth[length=2.2mm]}, line width=0.6pt, draw=black!75},
+  darr/.style={-{Stealth[length=2.2mm]}, line width=0.6pt, draw=black!60, dashed},
+  lab/.style={font=\tiny\itshape, text=black!70, inner sep=1pt},
+  lane/.style={draw=black!35, dashed, rounded corners=4pt, inner sep=6pt},
+  lanelabel/.style={font=\scriptsize\bfseries, text=black!65},
+}

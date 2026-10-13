@@ -350,12 +350,6 @@
             reader.readAsDataURL(file);
         }
         
-        function getConfClass(conf) {
-            if (conf >= 85) return 'conf-high';
-            if (conf >= 50) return 'conf-medium';
-            return 'conf-low';
-        }
-
         async function analyzeImage() {
             if (!selectedFile) return;
 
@@ -371,7 +365,7 @@
 
             try {
                 // Ensure this points to the FastAPI backend
-                const response = await fetch('http://localhost:8000/analyze', {
+                const response = await fetch('http://localhost:8000/analyze?advice=false', {
                     method: 'POST',
                     body: formData
                 });
@@ -393,37 +387,44 @@
             }
         }
 
-        function displayResults(result) {
-            const patient = result.patient || {};
-            const clinical = result.clinical || {};
-            const confs = result._confidences || {};
-            
-            // Format Patient Data
-            let pHtml = `Name:   ${patient.name || 'Not detected'} <span class="confidence-pill ${getConfClass(confs.name)}">${confs.name || 0}%</span>\n`;
-            pHtml += `Age:    ${patient.age || 'Not detected'} <span class="confidence-pill ${getConfClass(confs.age)}">${confs.age || 0}%</span>\n`;
-            pHtml += `Gender: ${patient.gender || 'Not detected'} <span class="confidence-pill ${getConfClass(confs.gender)}">${confs.gender || 0}%</span>`;
-            patientData.innerHTML = pHtml;
-            
-            // Format Clinical Data
-            let cHtml = `Symptoms:\n${clinical.symptoms || 'Not detected'} <span class="confidence-pill ${getConfClass(confs.symptoms)}">${confs.symptoms || 0}%</span>\n\n`;
-            
-            // Handle potentially multiple medicines if using line-by-line mode
-            cHtml += `Prescription Medicines:\n`;
-            let medFound = false;
-            for (const [key, val] of Object.entries(result._raw_fields || {})) {
-                if (key.startsWith('medicine') && val) {
-                    cHtml += `- ${val} <span class="confidence-pill ${getConfClass(confs[key])}">${confs[key] || 0}%</span>\n`;
-                    medFound = true;
-                }
-            }
-            
-            if (!medFound) {
-                 cHtml += `Not detected`;
-            }
-            
-            clinicalData.innerHTML = cHtml;
+        function esc(t) {
+            return String(t ?? '').replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+        }
 
-            // Show sections
+        function displayResults(result) {
+            const p = result.Patient || {};
+            patientData.innerHTML =
+                `Name:   ${esc(p.Name) || 'Not detected'}
+` +
+                `Age:    ${esc(p.Age) || 'Not detected'}
+` +
+                `Sex:    ${esc(p.Sex) || 'Not detected'}
+` +
+                `Date:   ${esc(result.Date) || 'Not detected'}`;
+
+            const meds = Array.isArray(result['Medical Text']) ? result['Medical Text'] : [];
+            let c = `Doctor:
+${esc(result.DoctorName) || 'Not detected'}
+
+`;
+            c += `Clinic / Hospital:
+${esc(result.HospitalClinicInfo) || 'Not detected'}
+
+`;
+            c += `Prescription Medicines:
+`;
+            c += meds.length ? meds.map(m => `- ${esc(m)}`).join('
+') : 'Not detected';
+            if (result['Dosage Advice']) c += `
+
+Dosage Advice:
+${esc(result['Dosage Advice'])}`;
+            if (result.Other) c += `
+
+Unclassified:
+${esc(result.Other)}`;
+            clinicalData.innerHTML = c;
+
             patientSection.style.display = 'block';
             clinicalSection.style.display = 'block';
         }
