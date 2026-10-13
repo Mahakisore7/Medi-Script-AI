@@ -1,0 +1,44 @@
+% Figure: detailed methodology / control-flow of the inference procedure.
+\begin{tikzpicture}[node distance=4mm and 5mm, base/.append style={text width=1.9cm}]
+  % ---- Lane A: handwritten medicine lines ----
+  \node[det] (a1) {Input $P$ $\rightarrow$ YOLOv8-nano\ conf $\ge 0.25$};
+  \node[dec, right=of a1] (a2) {$|B|>0$ ?};
+  \node[enh, right=of a2] (a3) {Pad 5\,px,\ enhance crop\ (scale $2\times$)};
+  \node[dec, right=of a3] (a4) {Gemini\ text ?};
+  \node[rec, right=of a4] (a5) {TrOCR-Large\ $N$-best $+$\ LM rescoring};
+  \node[vpost, right=of a5] (a6) {Lexicon match\ $\ge\tau$ ?\ replace / keep};
+  \node[vout, right=of a6, text width=1.5cm] (a7) {\texttt{Medical Text}};
+
+  \draw[arr] (a1) -- (a2);
+  \draw[arr] (a2) -- node[lab, above] {yes} (a3);
+  \draw[arr] (a3) -- (a4);
+  \draw[arr] (a4) -- node[lab, above] {no} (a5);
+  \draw[arr] (a5) -- (a6);
+  \draw[arr] (a6) -- (a7);
+  \draw[arr] (a4.north) -- ++(0,5mm) -| node[lab, pos=0.25, above] {yes (conf.\ $85$)} (a6.north);
+
+  % ---- Lane B: remaining text ----
+  \node[par, below=16mm of a2] (b1) {EasyOCR\ whole page};
+  \node[dec, right=of b1] (b2) {conf\ $\ge 15\%$ ?};
+  \node[dec, right=of b2] (b3) {IoA with\ $B>0.1$ ?};
+  \node[par, right=of b3] (b4) {Regex +\ position rules};
+  \node[par, right=of b4] (b5) {Anchor search\ Name, Age,\ Sex, Date};
+  \node[par, right=of b5] (b6) {Fall-backs:\ title, \textit{n}/M,\ date regex,\ TrOCR sex};
+
+  \draw[arr] (a1.south) |- (b1.west);
+  \draw[arr] (a2.south) -- node[lab, right] {no: all text non-medical} (b1.north);
+  \draw[arr] (b1) -- (b2);
+  \draw[arr] (b2) -- node[lab, above] {yes} (b3);
+  \draw[arr] (b3) -- node[lab, above] {no} (b4);
+  \draw[arr] (b4) -- (b5);
+  \draw[arr] (b5) -- (b6);
+  \draw[darr] (b2.south) -- ++(0,-4mm) node[lab, below] {discard};
+  \draw[darr] (b3.south) -- ++(0,-4mm) node[lab, below] {skip (is medicine)};
+
+  % ---- Merge ----
+  \node[vout, below=16mm of b4, text width=3.6cm] (m) {Final record: \texttt{DoctorName, Patient, Date, Clinic, Medical Text, Other, Dosage Advice}};
+  \node[llm] (l) at (a7 |- m) {LLM stage\\ (optional)};
+  \draw[arr] (b6.south) -- ++(0,-6mm) -| (m.north);
+  \draw[arr] (a7.south) -- (l.north);
+  \draw[arr] (l.west) -- (m.east);
+\end{tikzpicture}

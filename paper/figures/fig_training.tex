@@ -1,0 +1,20 @@
+% Figure: TrOCR fine-tuning lineage and data sources.
+\begin{tikzpicture}[node distance=4mm and 7mm]
+  \node[io, text width=2.2cm] (base) {\textbf{TrOCR-Large}\\ \texttt{trocr-large-}\\ \texttt{handwritten}};
+  \node[rec, right=of base, text width=3.0cm] (v2) {\textbf{v2}\\ encoder frozen\\ 5 epochs, LR $5{\times}10^{-5}$\\ max length 64};
+  \node[rec, right=of v2, text width=3.4cm] (v3) {\textbf{v3 --- cursive specialisation}\\ top-4 ViT layers unfrozen\\ +~medical tokens, 20 epochs\\ LR $5{\times}10^{-6}$, cosine, warm-up\\ elastic + perspective aug.};
+  \node[rec, right=of v3, text width=3.1cm] (v4) {\textbf{v4 --- dosage}\\ incremental, decoder only\\ 5 epochs, LR $1{\times}10^{-6}$\\ $+1000$ synthetic \texttt{1-0-1\,$\times$\,5\,days}};
+  \draw[arr] (base) -- (v2);
+  \draw[arr] (v2) -- (v3);
+  \draw[arr] (v3) -- (v4);
+
+  \node[enh, below=11mm of v2, text width=3.2cm] (d1) {YOLO crops from real prescriptions\\ pseudo-labelled by Gemini\\ (\texttt{labels.csv})};
+  \node[enh, below=11mm of v3, text width=3.2cm] (d2) {Same crops +\\ torchvision / OpenCV:\\ elastic, perspective, blur};
+  \node[enh, below=11mm of v4, text width=3.2cm] (d3) {Synthetic handwriting-font\\ dosage strings\\ (6 cursive fonts)};
+  \node[enh, left=of d1, text width=2.4cm] (d0) {RxHandBD\\ word images\\ (frozen-encoder run)};
+  \draw[arr] (d1) -- (v2); \draw[arr] (d2) -- (v3); \draw[arr] (d3) -- (v4);
+  \draw[arr] (d0.north) |- ++(0,3mm) -| (v2.south west);
+
+  \node[vpost, above=7mm of v3, text width=5.4cm] (cer) {Early stopping on validation CER (HF \texttt{Seq2SeqTrainer}),\\ best checkpoint reloaded; checkpoints tried newest-first at inference};
+  \draw[darr] (cer.south) -- (v3.north);
+\end{tikzpicture}

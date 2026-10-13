@@ -1,0 +1,27 @@
+% Figure: pipeline of the base paper (Biswas et al.) versus Medi-Script-AI.
+\begin{tikzpicture}[node distance=3.5mm, font=\scriptsize]
+  \tikzset{col/.style={base, text width=3.5cm, minimum height=7.5mm}}
+  % left column: base paper
+  \node[lanelabel] (hl) {Base paper (CNN + MLP)};
+  \node[col, io, below=3mm of hl] (l1) {Scan 300\,DPI; grayscale, Otsu,\\ denoise, deskew, normalise};
+  \node[col, io, below=of l1] (l2) {Contour-based segmentation\\ into patches};
+  \node[col, io, below=of l2] (l3) {CNN--SVM: printed vs.\ handwritten};
+  \node[col, io, below=of l3] (l4) {Printed $\rightarrow$ Tesseract\\ Handwritten $\rightarrow$ per-attribute\\ CNN + MLP (EMNIST-style glyph/word classes)};
+  \node[col, io, below=of l4] (l5) {Age: MNIST digits + finite-state\\ segmentation};
+  \node[col, io, below=of l5] (l6) {Attribute CSV $\rightarrow$ EHR};
+  \foreach \a/\b in {l1/l2,l2/l3,l3/l4,l4/l5,l5/l6} \draw[arr] (\a) -- (\b);
+
+  % right column: ours
+  \node[lanelabel, right=45mm of hl] (hr) {Medi-Script-AI (this work)};
+  \node[col, det, below=3mm of hr] (r1) {Photograph as-is;\\ crop-local enhancement only};
+  \node[col, det, below=of r1] (r2) {YOLOv8-nano learns where\\ handwriting lines are};
+  \node[col, rec, below=of r2] (r3) {Line-level seq2seq reading:\\ Gemini Vision $\rightarrow$ TrOCR-Large\\ (open vocabulary, dosage-aware)};
+  \node[col, vpost, below=of r3] (r4) {Domain LM rescoring $+$\\ TF-IDF lexicon correction};
+  \node[col, par, below=of r4] (r5) {EasyOCR + regex + spatial anchors\\ for printed / demographic text};
+  \node[col, llm, below=of r5] (r6) {LLM field classifier $+$ dosage\\ explanation; JSON / CSV $\rightarrow$ EHR};
+  \foreach \a/\b in {r1/r2,r2/r3,r3/r4,r4/r5,r5/r6} \draw[arr] (\a) -- (\b);
+
+  % correspondences
+  \draw[darr, cPost!70!black] (l2.east) -- node[lab, above, pos=0.5] {replaced by} (r2.west);
+  \draw[darr, cPost!70!black] (l4.east) -- node[lab, above, pos=0.5] {replaced by} (r3.west);
+\end{tikzpicture}

@@ -2,25 +2,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies required by OpenCV and EasyOCR
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
+# System libraries required by OpenCV / EasyOCR
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
+RUN pip install --no-cache-dir -e ".[ml,llm,api]"
 
-# Install core dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+COPY api ./api
+COPY models ./models
+COPY data ./data
 
-# Install API and Reconciliation dependencies
-RUN pip install --no-cache-dir fastapi uvicorn python-multipart easyocr
-
-# Copy the entire project
-COPY . .
-
-# Expose port
+ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
-
-# Run the API
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
