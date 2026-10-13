@@ -37,7 +37,7 @@ PRD.md
 # Generated Data and Downloads
 *.zip
 scratch/
-outputs/
+uploads/
 Roboflow_TrOCR_Dataset/
 input_images/
 working_v1/

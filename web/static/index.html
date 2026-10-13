@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medi-Script AI | Smart Prescription Digitization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div class="container">
+        <header class="hero">
+            <div class="logo">
+                <i class="ri-pulse-line"></i>
+                <span>Medi-Script AI</span>
+            </div>
+            <h1>Digitize Prescriptions with <span>AI Precision</span></h1>
+            <p>Upload a handwritten prescription and let our cutting-edge vision models extract patient details, doctor information, medicines, and dosage advice instantly.</p>
+        </header>
+
+        <main>
+            <div class="upload-section" id="drop-zone">
+                <input type="file" id="file-input" accept="image/*" hidden>
+                <div class="upload-content">
+                    <i class="ri-upload-cloud-2-line upload-icon"></i>
+                    <h3>Drag & Drop your prescription here</h3>
+                    <p>or click to browse files</p>
+                    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                </div>
+                <div id="image-preview-container" style="display: none;">
+                    <img id="image-preview" src="" alt="Prescription preview">
+                    <button class="btn-secondary" id="remove-img-btn"><i class="ri-close-line"></i></button>
+                </div>
+            </div>
+
+            <div class="process-action">
+                <button id="process-btn" class="btn-accent" disabled>
+                    <span>Extract Data</span>
+                    <i class="ri-arrow-right-line"></i>
+                </button>
+            </div>
+
+            <div class="loading-state" id="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+                <p>AI is analyzing the prescription... this may take up to 20 seconds.</p>
+            </div>
+
+            <div class="results-section" id="results-container" style="display: none;">
+                <h2>Extraction Results</h2>
+
+                <div class="grid-2-col">
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <i class="ri-user-heart-line"></i>
+                            <h3>Patient Details</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="data-row"><span>Name:</span> <strong id="res-patient-name">-</strong></div>
+                            <div class="data-row"><span>Age:</span> <strong id="res-patient-age">-</strong></div>
+                            <div class="data-row"><span>Sex:</span> <strong id="res-patient-sex">-</strong></div>
+                            <div class="data-row"><span>Date:</span> <strong id="res-date">-</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <i class="ri-stethoscope-line"></i>
+                            <h3>Doctor & Clinic Info</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="data-row"><span>Doctor Name:</span> <strong id="res-doctor-name">-</strong></div>
+                            <div class="data-row info-block"><span>Clinic Details:</span> <p id="res-clinic-info">-</p></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card glass-card span-full mt-4">
+                    <div class="card-header">
+                        <i class="ri-medicine-bottle-line"></i>
+                        <h3>Prescribed Medicines</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul id="res-medicines-list" class="medicines-list">
+                            <!-- Items will be injected here -->
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card glass-card span-full mt-4 highlight-card">
+                    <div class="card-header">
+                        <i class="ri-information-line"></i>
+                        <h3>Dosage Advice</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="res-dosage-advice" class="markdown-body">
+                            <!-- Markdown injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card glass-card span-full mt-4">
+                    <div class="card-header">
+                        <i class="ri-text-wrap"></i>
+                        <h3>Other Extracted Text</h3>
+                    </div>
+                    <div class="card-body">
+                        <p id="res-other" class="muted-text">-</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

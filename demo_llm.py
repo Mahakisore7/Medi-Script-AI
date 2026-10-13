@@ -59,6 +59,7 @@ def main():
     print("\n[2] Classifying 'Other' fields via LLM...")
     print("--------------------------------------------------")
     from rx_llm_advice.other_classifier import classify_other_fields
+
     record = classify_other_fields(record)
 
     print("\n[3] Extracting Medicines and Querying LLM...")

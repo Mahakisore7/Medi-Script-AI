@@ -4,6 +4,7 @@ import os
 
 _gemini_client = None
 
+
 def _get_client():
     global _gemini_client
     if _gemini_client is not None:
@@ -15,11 +16,13 @@ def _get_client():
 
     try:
         from google import genai
+
         _gemini_client = genai.Client(api_key=api_key)
         logging.info("✨ Gemini 2.5 Flash client initialized for Other Classifier.")
         return _gemini_client
     except ImportError:
         raise ImportError("google-genai not installed.")
+
 
 _CLASSIFIER_PROMPT = """You are a helpful and knowledgeable pharmacist assistant.
 You will be provided with a raw string extracted from a prescription which we couldn't classify (separated by '|').
@@ -49,6 +52,7 @@ Return ONLY valid JSON and nothing else.
 Here is the raw text to classify:
 """
 
+
 def classify_other_fields(record: dict) -> dict:
     """
     Takes the existing record, sends the 'Other' string to Gemini to classify,
@@ -60,6 +64,7 @@ def classify_other_fields(record: dict) -> dict:
 
     try:
         import time
+
         client = _get_client()
         prompt = _CLASSIFIER_PROMPT + other_text
 
@@ -80,10 +85,10 @@ def classify_other_fields(record: dict) -> dict:
         # Update fields ONLY if they are currently empty
         if not record.get("DoctorName") and parsed.get("DoctorName"):
             record["DoctorName"] = parsed["DoctorName"]
-            
+
         if not record.get("Date") and parsed.get("Date"):
             record["Date"] = parsed["Date"]
-            
+
         if parsed.get("HospitalClinicInfo"):
             # If clinic info exists, append it, or replace if empty
             if not record.get("HospitalClinicInfo"):
@@ -94,13 +99,13 @@ def classify_other_fields(record: dict) -> dict:
         patient_dict = record.get("Patient", {})
         if not patient_dict.get("Name") and parsed.get("PatientName"):
             patient_dict["Name"] = parsed["PatientName"]
-            
+
         if not patient_dict.get("Age") and parsed.get("Age"):
             patient_dict["Age"] = str(parsed["Age"])
-            
+
         if not patient_dict.get("Sex") and parsed.get("Sex"):
             patient_dict["Sex"] = parsed["Sex"]
-            
+
         record["Patient"] = patient_dict
 
         # Replace 'Other' with the unclassified leftovers

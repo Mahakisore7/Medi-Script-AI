@@ -156,16 +156,11 @@ def recognize_text(
         return _recognizer_base.recognize_text(image, field_type=field_type)
 
     if _recognizer_finetuned is None:
-        # Check if the fine-tuned model from Kaggle/Colab has been downloaded
-        local_model_v4 = "models/final_trocr_large_model_v4_dosage"
         local_model_v3 = "models/final_trocr_large_model_v3"
         local_model_v2 = "models/final_trocr_large_model_v2"
         local_model_v1 = "models/final_trocr_large_model"
 
-        if os.path.exists(local_model_v4):
-            logging.info(f"Using fine-tuned TrOCR model (v4) from {local_model_v4}")
-            _recognizer_finetuned = TrOCRRecognizer(local_model_v4)
-        elif os.path.exists(local_model_v3):
+        if os.path.exists(local_model_v3):
             logging.info(f"Using fine-tuned TrOCR model (v3) from {local_model_v3}")
             _recognizer_finetuned = TrOCRRecognizer(local_model_v3)
         elif os.path.exists(local_model_v2):

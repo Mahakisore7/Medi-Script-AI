@@ -39,12 +39,11 @@ def _get_client():
 
 # ── Prompt ─────────────────────────────────────────────────────────────────────
 _MEDICINE_PROMPT = (
-    "You are a pharmacist reading a handwritten prescription crop. "
-    "The image shows ONE medicine line (name + dosage). "
-    "Read and output ONLY the medicine name and dosage exactly as written "
-    "(e.g. 'Ecosprin 75mg' or 'Clopidogrel 75 mg'). "
-    "Do NOT add explanation. "
-    "If unclear or not a medicine, output exactly: UNREADABLE"
+    "You are an expert pharmacist reading a handwritten prescription crop. "
+    "Read and output the text exactly as written. "
+    "The text may contain a medicine name, a dosage instruction, or both. "
+    "Do NOT add any explanation, markdown formatting, or extra words. "
+    "If the image is completely blank or completely illegible noise, output exactly: UNREADABLE"
 )
 
 
@@ -67,15 +66,29 @@ def recognize_with_gemini(image: np.ndarray, field_type: str = "medicine") -> tu
         pil_img.save(buf, format="PNG")
         image_bytes = buf.getvalue()
 
-        # Sleep for 4 seconds to avoid hitting Gemini Free Tier 15 RPM limits
-        time.sleep(4)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                _MEDICINE_PROMPT,
-                types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
-            ],
-        )
+        response = None
+        for attempt in range(2):
+            try:
+                # Sleep for 4 seconds to avoid hitting Gemini Free Tier 15 RPM limits
+                time.sleep(4)
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[
+                        _MEDICINE_PROMPT,
+                        types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
+                    ],
+                )
+                break
+            except Exception as e:
+                if "503" in str(e) or "429" in str(e):
+                    if attempt == 0:
+                        logging.info(f"[GeminiOCR] Hit API error {e}. Retrying in 10s...")
+                        time.sleep(10)
+                        continue
+                raise e
+
+        if response is None:
+            return "", 0.0
 
         raw = response.text.strip() if response.text else ""
 
