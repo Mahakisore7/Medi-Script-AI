@@ -1,49 +1,73 @@
-# Python
+# ── Python ───────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
 .venv/
+venv/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-*.egg-info/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
 dist/
 build/
 
-# Secrets — never commit
+# ── Secrets: never commit ────────────────────────────────
 .env
+.env.*
+!.env.example
 *.env.local
 
-# Large artefacts (small curated weights are re-included below)
-*.ckpt
+# ── Model weights & checkpoints ──────────────────────────
+# Only the small curated YOLO detector is tracked; TrOCR folders are large.
+*.pt
 *.pth
+*.ckpt
 *.onnx
 *.safetensors
-*.pt
 !models/yolo/yolo_real_world_best.pt
 models/trocr/
 wandb/
 runs/
-uploads/
+
+# ── Runtime artefacts ────────────────────────────────────
+/uploads/
+/outputs/
+demo_output*.txt
+*.log
+# curated example outputs live in docs/examples/ (tracked)
+
+# ── Data ─────────────────────────────────────────────────
+# Full 384K medicine lexicon is distributed separately (see data/lexicon/README.md)
+data/lexicon/medicines.csv
+Roboflow_TrOCR_Dataset/
+input_images/
+Medical-Prescription-2/
+output_dataset/
 *.zip
 scratch/
 
-# Lexicon: the full 384K medicine list is distributed separately
-data/lexicon/medicines.csv
+# ── LaTeX build products (paper/main.pdf and docs/report PDFs stay tracked) ──
+*.aux
+*.bbl
+*.blg
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+paper/pg-*.png
 
-# OS / editor
+# ── OS / editor / tools ──────────────────────────────────
 .DS_Store
+Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+.idea/
+.claude/
+graphify-out/
 node_modules/
-
-# LaTeX build products
-paper/*.aux
-paper/*.bbl
-paper/*.blg
-paper/*.log
-paper/*.out
-paper/*.fls
-paper/*.fdb_latexmk
-paper/*.synctex.gz
-paper/*.toc
