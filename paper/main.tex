@@ -205,7 +205,7 @@ Handwritten crops are small, low-contrast and unevenly lit. Each crop $C$ passes
 \begin{equation}
 p(t\mid C)=\prod_{k=1}^{|t|}p\bigl(t_k\mid t_{<k},E(C)\bigr).
 \end{equation}
-Decoding uses beam search ($N{=}2$ returned hypotheses for medicine fields, \texttt{no\_repeat\_ngram\_size}$=3$, at most 24 new tokens). The confidence of hypothesis $t_i$ is the mean token probability, $c_i=100\cdot\frac{1}{|t_i|}\sum_k p(t_{i,k}\mid\cdot)$. The newest available checkpoint (v4, v3, v2, v1) is loaded, and the public \texttt{trocr-large-handwritten} model is the last resort.
+Decoding uses beam search ($N{=}2$ returned hypotheses for medicine fields, \texttt{no\_repeat\_ngram\_size}$=3$, at most 24 new tokens). The confidence of hypothesis $t_i$ is the mean token probability, $c_i=100\cdot\frac{1}{|t_i|}\sum_k p(t_{i,k}\mid\cdot)$. The newest available checkpoint (v3, v2, v1; the v4 dosage checkpoint is opt-in) is loaded, and the public \texttt{trocr-large-handwritten} model is the last resort.
 
 \paragraph{Domain language-model rescoring.} Because a general decoder prefers fluent English, hypotheses are re-ranked with a character trigram model trained on the lexicons ($|V|$ symbols, Laplace smoothing):
 \begin{align}

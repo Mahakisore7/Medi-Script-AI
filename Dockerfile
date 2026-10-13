@@ -12,6 +12,7 @@ COPY src ./src
 RUN pip install --no-cache-dir -e ".[ml,llm,api]"
 
 COPY api ./api
+COPY frontend ./frontend
 COPY models ./models
 COPY data ./data
 

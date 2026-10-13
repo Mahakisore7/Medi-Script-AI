@@ -23,7 +23,7 @@ build/
 models/trocr/
 wandb/
 runs/
-outputs/
+uploads/
 *.zip
 scratch/
 

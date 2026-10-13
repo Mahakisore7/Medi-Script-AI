@@ -3,431 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medi-Script-AI | Prescription Digitization</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --bg-color: #0b1120;
-            --glass-bg: rgba(17, 24, 39, 0.7);
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent: #10b981;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg-color);
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        header {
-            padding: 2rem;
-            text-align: center;
-        }
-
-        header h1 {
-            margin: 0;
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(to right, #60a5fa, #34d399);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        header p {
-            color: var(--text-muted);
-            margin-top: 0.5rem;
-            font-size: 1.1rem;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            flex: 1;
-        }
-
-        .card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 2rem;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .card h2 {
-            margin-top: 0;
-            font-size: 1.5rem;
-            border-bottom: 1px solid var(--glass-border);
-            padding-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        /* Upload Area */
-        .upload-area {
-            border: 2px dashed var(--glass-border);
-            border-radius: 12px;
-            padding: 3rem 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.02);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .upload-area:hover, .upload-area.dragover {
-            border-color: var(--primary);
-            background: rgba(59, 130, 246, 0.05);
-        }
-
-        .upload-area i {
-            font-size: 3rem;
-            color: var(--primary);
-            margin-bottom: 1rem;
-        }
-
-        .upload-area p {
-            margin: 0.5rem 0;
-            color: var(--text-muted);
-        }
-
-        #fileInput {
-            display: none;
-        }
-
-        #imagePreview {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            background: #000;
-            display: none;
-            z-index: 10;
-        }
-
-        .btn {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s ease;
-            margin-top: 1rem;
-            width: 100%;
-        }
-
-        .btn:hover {
-            background: var(--primary-hover);
-        }
-
-        .btn:disabled {
-            background: var(--text-muted);
-            cursor: not-allowed;
-        }
-
-        /* Results Area */
-        .results-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-        
-        .placeholder {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-muted);
-            font-style: italic;
-        }
-
-        .result-section {
-            margin-bottom: 1.5rem;
-            display: none;
-        }
-
-        .result-section h3 {
-            font-size: 1.1rem;
-            color: var(--primary);
-            margin-bottom: 0.5rem;
-        }
-
-        .result-box {
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--glass-border);
-            padding: 1rem;
-            border-radius: 8px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            color: #e2e8f0;
-            font-size: 0.95rem;
-        }
-
-        /* Loader */
-        .loader-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--glass-bg);
-            backdrop-filter: blur(4px);
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            border-radius: 12px;
-            z-index: 20;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(59, 130, 246, 0.3);
-            border-radius: 50%;
-            border-top-color: var(--primary);
-            animation: spin 1s ease-in-out infinite;
-        }
-        
-        .confidence-pill {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            margin-left: 0.5rem;
-        }
-        
-        .conf-high { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-        .conf-medium { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
-        .conf-low { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <title>Medi-Script AI | Smart Prescription Digitization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
 </head>
 <body>
-
-    <header>
-        <h1>Medi-Script-AI</h1>
-        <p>Offline Medical Prescription Recognition Pipeline</p>
-    </header>
-
-    <div class="container">
-        <!-- Left Column: Upload -->
-        <div class="card">
-            <h2><i class="fa-solid fa-cloud-arrow-up"></i> Upload Prescription</h2>
-            <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
-                <i class="fa-solid fa-file-medical"></i>
-                <p><strong>Click to browse</strong> or drag & drop an image</p>
-                <p style="font-size: 0.85rem">Supports JPG, PNG, WEBP</p>
-                <img id="imagePreview" alt="Prescription preview">
-                <input type="file" id="fileInput" accept="image/*">
-            </div>
-            <button class="btn" id="analyzeBtn" disabled onclick="analyzeImage()">
-                <i class="fa-solid fa-microchip"></i> Analyze Prescription
-            </button>
-        </div>
-
-        <!-- Right Column: Results -->
-        <div class="card">
-            <h2><i class="fa-solid fa-list-check"></i> Structured Output</h2>
-            <div class="results-container">
-                
-                <div class="loader-overlay" id="loader">
-                    <div class="spinner"></div>
-                    <p style="margin-top: 1rem; color: var(--primary); font-weight: 500;">AI Models Processing...</p>
-                </div>
-
-                <div class="placeholder" id="placeholder">
-                    Upload an image to see the AI digitized results here.
-                </div>
-
-                <div class="result-section" id="patientSection">
-                    <h3>Patient Information</h3>
-                    <div class="result-box" id="patientData"></div>
-                </div>
-
-                <div class="result-section" id="clinicalSection">
-                    <h3>Clinical Details</h3>
-                    <div class="result-box" id="clinicalData"></div>
-                </div>
-
-            </div>
-        </div>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
     </div>
 
-    <script>
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const imagePreview = document.getElementById('imagePreview');
-        const analyzeBtn = document.getElementById('analyzeBtn');
-        const loader = document.getElementById('loader');
-        const placeholder = document.getElementById('placeholder');
-        const patientSection = document.getElementById('patientSection');
-        const clinicalSection = document.getElementById('clinicalSection');
-        const patientData = document.getElementById('patientData');
-        const clinicalData = document.getElementById('clinicalData');
+    <div class="container">
+        <header class="hero">
+            <div class="logo">
+                <i class="ri-pulse-line"></i>
+                <span>Medi-Script AI</span>
+            </div>
+            <h1>Digitize Prescriptions with <span>AI Precision</span></h1>
+            <p>Upload a handwritten prescription and let our cutting-edge vision models extract patient details, doctor information, medicines, and dosage advice instantly.</p>
+        </header>
 
-        let selectedFile = null;
+        <main>
+            <div class="upload-section" id="drop-zone">
+                <input type="file" id="file-input" accept="image/*" hidden>
+                <div class="upload-content">
+                    <i class="ri-upload-cloud-2-line upload-icon"></i>
+                    <h3>Drag & Drop your prescription here</h3>
+                    <p>or click to browse files</p>
+                    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                </div>
+                <div id="image-preview-container" style="display: none;">
+                    <img id="image-preview" src="" alt="Prescription preview">
+                    <button class="btn-secondary" id="remove-img-btn"><i class="ri-close-line"></i></button>
+                </div>
+            </div>
 
-        // Drag and drop handlers
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
+            <div class="process-action">
+                <button id="process-btn" class="btn-accent" disabled>
+                    <span>Extract Data</span>
+                    <i class="ri-arrow-right-line"></i>
+                </button>
+            </div>
 
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
+            <div class="loading-state" id="loading-spinner" style="display: none;">
+                <div class="spinner"></div>
+                <p>AI is analyzing the prescription... this may take up to 20 seconds.</p>
+            </div>
 
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                handleFile(e.dataTransfer.files[0]);
-            }
-        });
+            <div class="results-section" id="results-container" style="display: none;">
+                <h2>Extraction Results</h2>
 
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                handleFile(e.target.files[0]);
-            }
-        });
+                <div class="grid-2-col">
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <i class="ri-user-heart-line"></i>
+                            <h3>Patient Details</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="data-row"><span>Name:</span> <strong id="res-patient-name">-</strong></div>
+                            <div class="data-row"><span>Age:</span> <strong id="res-patient-age">-</strong></div>
+                            <div class="data-row"><span>Sex:</span> <strong id="res-patient-sex">-</strong></div>
+                            <div class="data-row"><span>Date:</span> <strong id="res-date">-</strong></div>
+                        </div>
+                    </div>
 
-        function handleFile(file) {
-            if (!file.type.startsWith('image/')) {
-                alert('Please upload an image file.');
-                return;
-            }
-            selectedFile = file;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                imagePreview.src = e.target.result;
-                imagePreview.style.display = 'block';
-                analyzeBtn.disabled = false;
-            };
-            reader.readAsDataURL(file);
-        }
-        
-        async function analyzeImage() {
-            if (!selectedFile) return;
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <i class="ri-stethoscope-line"></i>
+                            <h3>Doctor & Clinic Info</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="data-row"><span>Doctor Name:</span> <strong id="res-doctor-name">-</strong></div>
+                            <div class="data-row info-block"><span>Clinic Details:</span> <p id="res-clinic-info">-</p></div>
+                        </div>
+                    </div>
+                </div>
 
-            // UI State
-            analyzeBtn.disabled = true;
-            loader.style.display = 'flex';
-            placeholder.style.display = 'none';
-            patientSection.style.display = 'none';
-            clinicalSection.style.display = 'none';
+                <div class="card glass-card span-full mt-4">
+                    <div class="card-header">
+                        <i class="ri-medicine-bottle-line"></i>
+                        <h3>Prescribed Medicines</h3>
+                    </div>
+                    <div class="card-body">
+                        <ul id="res-medicines-list" class="medicines-list">
+                            <!-- Items will be injected here -->
+                        </ul>
+                    </div>
+                </div>
 
-            const formData = new FormData();
-            formData.append('file', selectedFile);
+                <div class="card glass-card span-full mt-4 highlight-card">
+                    <div class="card-header">
+                        <i class="ri-information-line"></i>
+                        <h3>Dosage Advice</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="res-dosage-advice" class="markdown-body">
+                            <!-- Markdown injected here -->
+                        </div>
+                    </div>
+                </div>
 
-            try {
-                // Ensure this points to the FastAPI backend
-                const response = await fetch('http://localhost:8000/analyze?advice=false', {
-                    method: 'POST',
-                    body: formData
-                });
+                <div class="card glass-card span-full mt-4">
+                    <div class="card-header">
+                        <i class="ri-text-wrap"></i>
+                        <h3>Other Extracted Text</h3>
+                    </div>
+                    <div class="card-body">
+                        <p id="res-other" class="muted-text">-</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
 
-                if (!response.ok) {
-                    throw new Error(`Server responded with ${response.status}`);
-                }
-
-                const data = await response.json();
-                displayResults(data.result);
-                
-            } catch (error) {
-                alert('Error analyzing image: ' + error.message);
-                placeholder.style.display = 'flex';
-                placeholder.textContent = "Analysis failed. Please try again.";
-            } finally {
-                loader.style.display = 'none';
-                analyzeBtn.disabled = false;
-            }
-        }
-
-        function esc(t) {
-            return String(t ?? '').replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
-        }
-
-        function displayResults(result) {
-            const p = result.Patient || {};
-            patientData.innerHTML =
-                `Name:   ${esc(p.Name) || 'Not detected'}
-` +
-                `Age:    ${esc(p.Age) || 'Not detected'}
-` +
-                `Sex:    ${esc(p.Sex) || 'Not detected'}
-` +
-                `Date:   ${esc(result.Date) || 'Not detected'}`;
-
-            const meds = Array.isArray(result['Medical Text']) ? result['Medical Text'] : [];
-            let c = `Doctor:
-${esc(result.DoctorName) || 'Not detected'}
-
-`;
-            c += `Clinic / Hospital:
-${esc(result.HospitalClinicInfo) || 'Not detected'}
-
-`;
-            c += `Prescription Medicines:
-`;
-            c += meds.length ? meds.map(m => `- ${esc(m)}`).join('
-') : 'Not detected';
-            if (result['Dosage Advice']) c += `
-
-Dosage Advice:
-${esc(result['Dosage Advice'])}`;
-            if (result.Other) c += `
-
-Unclassified:
-${esc(result.Other)}`;
-            clinicalData.innerHTML = c;
-
-            patientSection.style.display = 'block';
-            clinicalSection.style.display = 'block';
-        }
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>

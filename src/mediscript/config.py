@@ -22,8 +22,14 @@ YOLO_WEIGHTS = Path(
 )
 
 # TrOCR checkpoints are tried newest-first; falls back to the public base model.
+# The v4 (dosage) checkpoint is disabled by default, matching the team's decision on
+# ``main`` to use v3; set MEDISCRIPT_USE_V4=1 to try it first.
 TROCR_CHECKPOINTS = [
-    MODELS_DIR / "trocr" / "final_trocr_large_model_v4_dosage",
+    *(
+        [MODELS_DIR / "trocr" / "final_trocr_large_model_v4_dosage"]
+        if os.environ.get("MEDISCRIPT_USE_V4") == "1"
+        else []
+    ),
     MODELS_DIR / "trocr" / "final_trocr_large_model_v3",
     MODELS_DIR / "trocr" / "final_trocr_large_model_v2",
     MODELS_DIR / "trocr" / "final_trocr_large_model",

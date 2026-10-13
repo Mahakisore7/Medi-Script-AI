@@ -54,6 +54,7 @@ def generate_dosage_advice(medicines: list[str]) -> str:
 
     try:
         import time
+
         client = _get_client()
         prompt = _ADVICE_PROMPT + "\n- " + "\n- ".join(medicines)
 

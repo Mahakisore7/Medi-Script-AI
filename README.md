@@ -61,7 +61,7 @@ flowchart LR
     Y -- "line boxes B" --> E["Stage 2a<br/>Crop enhancement<br/>CLAHE + adaptive thr."]
     E --> G{"Gemini Vision<br/>text?"}
     G -- yes --> L
-    G -- "no / UNREADABLE" --> T["TrOCR-Large (v4→v1)<br/>N-best + char-LM rescoring"]
+    G -- "no / UNREADABLE" --> T["TrOCR-Large (v3→v1)<br/>N-best + char-LM rescoring"]
     T --> L["Stage 3<br/>TF-IDF lexicon<br/>correction (cos ≥ 0.6)"]
     L --> M[("Medical Text")]
     Y -- "image \ B" --> O["Stage 4a<br/>EasyOCR full page"]
@@ -152,7 +152,7 @@ Medi-Script-AI/
 │   ├── data_gen/                  # synthetic words / dosage / prescriptions, auto-labelling
 │   └── training/                  # TrOCR & YOLO training; colab/ = v2, v3, v4 notebooks-as-scripts
 ├── api/main.py                    # FastAPI service (POST /analyze)
-├── frontend/index.html            # drag-and-drop web UI
+├── frontend/                      # web dashboard (index.html, app.js, style.css), served by the API
 ├── scripts/                       # run_pipeline.py (CLI), visualize_pipeline.py, dataset helpers
 ├── experiments/                   # evaluation scripts
 ├── tests/                         # pytest suite
@@ -161,7 +161,7 @@ Medi-Script-AI/
 ├── data/                          # dataset card, manifest, lexicon/, samples/
 ├── assets/fonts/                  # handwriting fonts for synthetic data
 ├── notebooks/                     # Kaggle fine-tuning notebook
-├── docs/                          # NOVELTY_ANALYSIS, PROJECT_HISTORY, build-guide/, training/
+├── docs/                          # NOVELTY_ANALYSIS, PROJECT_HISTORY, report/ (project report), examples/ (sample outputs), build-guide/, training/
 └── paper/                         # main.tex, figures/ (TikZ), references.bib, main.pdf
 ```
 
@@ -176,7 +176,7 @@ pip install -e ".[ml,llm,api,dev]"
 cp .env.example .env                                      # add GEMINI_API_KEY (optional)
 ```
 
-**Models / lexicon.** The YOLO detector ships in `models/yolo/`. Place fine-tuned TrOCR folders under `models/trocr/` (`final_trocr_large_model_v4_dosage`, `…_v3`, …); otherwise `microsoft/trocr-large-handwritten` is downloaded on first use. Put `medicines.csv` / `symptoms.csv` in `data/lexicon/` (see its README).
+**Models / lexicon.** The YOLO detector ships in `models/yolo/`. Place fine-tuned TrOCR folders under `models/trocr/` (`final_trocr_large_model_v3`, `…_v2`, …; the v4 dosage checkpoint is opt-in via `MEDISCRIPT_USE_V4=1`); otherwise `microsoft/trocr-large-handwritten` is downloaded on first use. Put `medicines.csv` / `symptoms.csv` in `data/lexicon/` (see its README).
 
 ## 9. Usage
 
@@ -185,7 +185,7 @@ cp .env.example .env                                      # add GEMINI_API_KEY (
 python scripts/run_pipeline.py path/to/prescription.jpg
 
 # Web service + UI
-uvicorn api.main:app --host 0.0.0.0 --port 8000     # then open frontend/index.html
+uvicorn api.main:app --host 0.0.0.0 --port 8000     # then open http://localhost:8000 (dashboard); POST /api/upload or /analyze
 curl -F "file=@prescription.jpg" "http://localhost:8000/analyze?advice=false"
 
 # Docker
