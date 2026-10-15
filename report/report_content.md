@@ -242,8 +242,6 @@ The pipeline components are evaluated using standard computer vision and NLP met
 
 ![YOLOv8 Training Loss and Evaluation Curves](figures/yolo_training_results.png)
 
-![YOLOv8 Precision-Recall Curve](figures/yolo_pr_curve.png)
-
 #### Handwriting Recognition on RxHandBD (TrOCR Progression)
 | Model Variant | Fine-Tuning Strategy | CER (%) | WER (%) |
 |---|---|---|---|
