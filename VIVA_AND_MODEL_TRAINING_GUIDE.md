@@ -23,7 +23,7 @@
 | **Base Model Checkpoint** | `yolov8n.pt` (Nano variant) | `microsoft/trocr-large-handwritten` |
 | **Model Size / Params** | ~3.2 Million parameters (~6 MB) | ~558 Million parameters (~1.3 GB) |
 | **Where Trained** | Kaggle Notebooks (NVIDIA Tesla T4 GPU) & Local Workstation | Google Colab (NVIDIA Tesla T4 GPU, 16 GB VRAM) |
-| **Primary Datasets** | 1. Bangladesh Hospital Prescription Dataset (Roboflow)<br>2. 200 Synthetic Multi-Field Prescriptions (PIL) | 1. RxHandBD (Bangladesh Doctor's Prescription Dataset, 4,680 crops)<br>2. Synthetic Dosage & Pharmaceutical crops |
+| **Primary Datasets** | 1. **Bannari Amman Institute of Technology Prescription Dataset** (Roboflow)<br>2. 200 Synthetic Multi-Field Prescriptions (PIL) | 1. RxHandBD (Bangladesh Doctor's Prescription Dataset, 4,680 crops)<br>2. Synthetic Dosage & Pharmaceutical crops |
 | **Training Epochs** | 50 Epochs (Kaggle) / 30 Epochs (Local Fine-Tuning) | 20 Epochs (with Early Stopping patience = 5) |
 | **Batch Size & Optimizer** | Batch 8, SGD with momentum / AdamW | Effective Batch 8 (Batch 4 $\times$ 2 Grad Accumulation), AdamW |
 | **Learning Rate** | $1 \times 10^{-2}$ (with Cosine Decay) | $5 \times 10^{-6}$ (Warmup + Cosine Decay) |
@@ -42,18 +42,16 @@ Medical prescriptions contain noisy backgrounds, hospital logos, pre-printed leg
 - **Single-Stage Detector:** Unlike older two-stage detectors (like Faster R-CNN) that first generate region proposals and then classify them, YOLOv8 predicts bounding boxes and class probabilities in a **single forward pass** using an anchor-free detection head.
 
 ### 2.2 Datasets Used
-1. **Roboflow / Daffodil International University Dataset:**
-   - Real-world medical prescriptions from hospital outpatient departments in Bangladesh (`doctors-prescriptions-handwriting`).
-   - Annotated with bounding boxes for field regions.
+1. **Bannari Amman Institute of Technology (BIT) Prescription Dataset (Roboflow):**
+   - Real-world medical prescriptions from Indian hospital records published by **Bannari Amman Institute of Technology** (`bannari-amman-institute-of-technology-ifaw9/handwritten-recognition`).
+   - Annotated with tight bounding boxes targeting handwritten prescription lines and medicine regions (`Prescription` class).
+   - Used for fine-tuning our production weights (`runs/detect/yolo_real_world_best.pt`) over **50 epochs** on GPU.
 2. **Synthetic Medical Prescription Generator (`dataset_generation/generate_prescription_dataset.py`):**
    - Built using Python `Pillow` (PIL) to generate 200 synthetic prescriptions.
    - Features 15+ cursive handwriting fonts, randomized doctor layouts, random medical terminology from drug databases, and automatic normalized YOLO bounding box calculation (`class_id x_center y_center width height`).
 3. **Detected Classes:**
-   - Class 0: `name`
-   - Class 1: `age`
-   - Class 2: `gender`
-   - Class 3: `symptoms`
-   - Class 4: `medicine`
+   - Real-world dataset: `Prescription` / medicine lines (yielding our high-accuracy `yolo_real_world_best.pt`).
+   - Multi-class synthetic model: `name`, `age`, `gender`, `symptoms`, `medicine`.
 
 ### 2.3 Training Platform & Configuration
 - **Platform:** Kaggle GPU environment (using 2x NVIDIA Tesla T4 GPUs) and local workstation execution.
@@ -368,10 +366,10 @@ model.train(
 )
 ```
 - **Key Points for Faculty:**
-  1. We start from the pre-trained COCO checkpoint `yolov8n.pt` and perform transfer learning on our prescription dataset.
-  2. The `data.yaml` file defines paths to the train/val directories and the 5 class names (`name`, `age`, `gender`, `symptoms`, `medicine`).
+  1. We start from the pre-trained COCO checkpoint `yolov8n.pt` and perform transfer learning on the **Bannari Amman Institute of Technology Prescription Dataset** (for our production real-world medicine detector `runs/detect/yolo_real_world_best.pt`, trained for 50 epochs).
+  2. For multi-field extraction experiments (`name`, `age`, `gender`, `symptoms`, `medicine`), the script points to `data.yaml` defining paths to the train/val directories and the 5 class names.
   3. `patience=10` ensures that if validation loss stops improving for 10 epochs, training automatically halts to prevent overfitting.
-  4. The best weights are saved at `runs/detect/prescription_fields/weights/best.pt`.
+  4. The best weights are saved at `runs/detect/prescription_fields/weights/best.pt` and `runs/detect/yolo_real_world_best.pt`.
 
 ---
 
