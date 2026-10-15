@@ -238,7 +238,11 @@ The pipeline components are evaluated using standard computer vision and NLP met
 | Recall | 0.91 |
 | Inference Latency | ~15 ms / image (NVIDIA GPU) |
 
-![Results Metrics](figures/results_metrics.png)
+![YOLO Detection Metrics](figures/results_metrics.png)
+
+![YOLOv8 Training Loss and Evaluation Curves](figures/yolo_training_results.png)
+
+![YOLOv8 Precision-Recall Curve](figures/yolo_pr_curve.png)
 
 #### Handwriting Recognition on RxHandBD (TrOCR Progression)
 | Model Variant | Fine-Tuning Strategy | CER (%) | WER (%) |
@@ -246,6 +250,8 @@ The pipeline components are evaluated using standard computer vision and NLP met
 | TrOCR-Large (Zero-Shot Baseline) | None | 18.7% | 42.3% |
 | TrOCR-Large v1 | Decoder Only Fine-Tuned | 11.2% | 28.6% |
 | **TrOCR-Large v3 (Medi-Script AI)** | **Encoder (Top-4) + Decoder + 126 Tokens** | **6.8%** | **17.4%** |
+
+![TrOCR Training Convergence & Error Rate Progression](figures/trocr_training_metrics.png)
 
 #### Comparison with Prior Benchmark Literature
 | Method | Architecture | Dataset | CER (%) | WER (%) |

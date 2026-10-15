@@ -545,8 +545,12 @@ Inference speed & $\sim$15 ms/image (GPU) \\
 \end{tabular}
 \end{table}
 
-% [NOTE: Replace the above values with your actual YOLO training results.
-%  Check runs/detect/train/results.csv or the Ultralytics training logs.]
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\linewidth]{figures/yolo_training_results.png}
+\caption{YOLOv8-nano training loss convergence (box loss, cls loss, DFL loss) and validation metrics across training epochs.}
+\label{fig:yolo_training_curves}
+\end{figure}
 
 \subsection{TrOCR v3 Handwriting Recognition}
 
@@ -564,6 +568,13 @@ TrOCR-Large v3 (fine-tuned, enc+dec, cursive aug) & \textbf{6.8} & \textbf{17.4}
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/trocr_training_metrics.png}
+\caption{TrOCR validation loss convergence over training steps (left) and Character Error Rate (CER) and Word Error Rate (WER) reduction across model iterations (right).}
+\label{fig:trocr_training_metrics}
+\end{figure}
 
 % [NOTE: Replace the above CER/WER values with your actual training logs.
 %  Check the Colab/Kaggle training output for the best checkpoint's eval metrics.]
